@@ -44,26 +44,26 @@ class InvalidLocationError(Exception):
     """ The line doesn't include any location. """
 
 
-def _get_user_page(school_id, user_type, user_id, week = "", login = "", password = ""):
+def _get_user_page(args, week = ""):
     URL_TEMPLATE = "https://www.lectio.dk/lectio/{0}/" \
                    "SkemaNy.aspx?type={1}&{1}id={2}&week={3}"
                    
-    LOGIN_URL = "https://www.lectio.dk/lectio/{0}/login.aspx".format(school_id)
+    LOGIN_URL = "https://www.lectio.dk/lectio/{0}/login.aspx".format(args.school_id)
     
     # Start requests session
     s = requests.Session()
     
-    if(login != ""):
+    if(args.login != ""):
         # Get eventvalidation key
         result = s.get(LOGIN_URL)
         tree = html.fromstring(result.text)
         authenticity_token = list(set(tree.xpath("//input[@name='__EVENTVALIDATION']/@value")))[0]
 
-        # Create payload
+        # Create payloadweek
         payload = {
-            "m$Content$username2": login,
-            "m$Content$password2": password,
-            "m$Content$passwordHidden": password,
+            "m$Content$username2": args.login,
+            "m$Content$password2": args.password,
+            "m$Content$passwordHidden": args.password,
             "__EVENTVALIDATION": authenticity_token,
             "__EVENTTARGET": "m$Content$submitbtn2",
             "__EVENTARGUMENT": "",
@@ -83,9 +83,9 @@ def _get_user_page(school_id, user_type, user_id, week = "", login = "", passwor
             s.cookies.update(pickle.load(f))
         
     # Scrape url and save cookies to file
-    r = s.get(URL_TEMPLATE.format(school_id,
-                                  USER_TYPE[user_type],
-                                  user_id,
+    r = s.get(URL_TEMPLATE.format(args.school_id,
+                                  USER_TYPE[args.user_type],
+                                  args.user_id,
                                   week),
                      allow_redirects=False)
     with open('cookie.txt', 'wb') as f:
@@ -209,6 +209,12 @@ def _add_section_to_summary(section, summary):
     summary += section
     return summary
 
+def _clean_summary(summary):
+    summary = summary.replace("Hold: ", "")
+    summary = summary.replace("Lærere: ", "")
+    summary = re.sub(r"Lærer: [^(]*\(([^)]*)\)", r"\1", summary)
+    return summary
+
 
 def _get_info_from_title(title):
     summary = description = ""
@@ -230,6 +236,7 @@ def _get_info_from_title(title):
                 summary = _add_section_to_summary(line, summary)
         else:
             description = _add_line_to_text(line, description)
+    summary = _clean_summary(summary)
     return summary, status, start_time, end_time, location, description
 
 
@@ -244,21 +251,24 @@ def _parse_element_to_lesson(element):
     return lesson.Lesson(id, summary, status, start_time, end_time, location, description, link)
 
 
-def _parse_page_to_lessons(page):
-    tree = html.fromstring(page)
+def _parse_elements_to_lessons(args, lesson_elements):
+    lessons = []
+    for element in lesson_elements:
+        lesson = _parse_element_to_lesson(element)
+        if not (args.hide_header and type(lesson.start) == datetime.date):
+            if not (args.hide_cancelled and lesson.status == "cancelled"):
+                lessons.append(lesson)
+    return lessons
+
+
+def _retreive_week_schedule(args, week):
+    r = _get_user_page(args, week)
+    tree = html.fromstring(r.content)
     # Find all a elements with class s2skemabrik in page
     lesson_elements = tree.xpath("//a[contains(concat("
                                  "' ', normalize-space(@class), ' '),"
                                  "' s2skemabrik ')]")
-    lessons = []
-    for element in lesson_elements:
-        lessons.append(_parse_element_to_lesson(element))
-    return lessons
-
-
-def _retreive_week_schedule(school_id, user_type, user_id, week, login = "", password = ""):
-    r = _get_user_page(school_id, user_type, user_id, week, login = "", password = "")
-    schedule = _parse_page_to_lessons(r.content)
+    schedule = _parse_elements_to_lessons(args, lesson_elements)
     return schedule
 
 
@@ -270,29 +280,24 @@ def _filter_for_duplicates(schedule):
     return filtered_schedule
 
 
-def _retreive_user_schedule(school_id, user_type, user_id, n_weeks, login = "", password = ""):
+def _retreive_user_schedule(args):
     schedule = []
-    for week_offset in range(n_weeks + 1):
+    for week_offset in range(args.weeks + 1):
         week = _get_lectio_weekformat_with_offset(week_offset)
-        week_schedule = _retreive_week_schedule(school_id,
-                                                user_type,
-                                                user_id,
-                                                week, 
-                                                login = "", 
-                                                password = "")
+        week_schedule = _retreive_week_schedule(args, week)
         schedule += week_schedule
     filtered_schedule = _filter_for_duplicates(schedule)
     return filtered_schedule
 
 
-def _can_login(school_id, user_type, user_id, login = "", password = ""):
-    r = _get_user_page(school_id, user_type, user_id, "", login, password)
+def _can_login(args):
+    r = _get_user_page(args)
     return r.status_code == requests.codes.ok
 
 
-def get_schedule(school_id, user_type, user_id, n_weeks, login = "", password = ""):
-    if not _can_login(school_id, user_type, user_id, login, password):
+def get_schedule(args):
+    if not _can_login(args):
         raise CannotLoginToLectioError(
             "Couldn't login user - school: {}, type: {}, id: {}, login: {} "
-            "- in Lectio.".format(school_id, user_type, user_id, login))
-    return _retreive_user_schedule(school_id, user_type, user_id, n_weeks, login = "", password = "")
+            "- in Lectio.".format(args.school_id, args.user_type, args.user_id, args.login))
+    return _retreive_user_schedule(args)

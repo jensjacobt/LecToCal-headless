@@ -37,61 +37,66 @@ def _get_arguments():
                         default="storage.json",
                         help="Path to the file storing the Google "
                         "OAuth credentials. (default: storage.json)")
-    parser.add_argument("--calendar",
-                        default="Lectio",
-                        help="Name to use for the calendar inside "
-                        "Google Calendar. (default: Lectio)")
     parser.add_argument("--login",
                         default="",
                         type=str,
                         help="The username from a Lectio login.")
-    parser.add_argument('--keepalive',
-                        default=False,
-                        dest='keepalive', 
-                        action='store_true')
+    parser.add_argument("--calendar",
+                        default="Lectio",
+                        help="Name to use for the calendar inside "
+                        "Google Calendar. (default: Lectio)")
     parser.add_argument("--weeks",
                         type=int,
                         default=4,
-                        help="Number of weeks to parse the schedule for. "
+                        help="Number of weeks of the schedule to parse. "
                         "(default: 4)")
+    parser.add_argument('--keepalive',
+                        default=False,
+                        dest='keepalive', 
+                        action='store_true',
+                        help="Ping lectio to keep session alive.")
+    parser.add_argument('--hide-cancelled',
+                        default=False,
+                        dest='hide_cancelled', 
+                        action='store_true',
+                        help="Hide cancelled events from calendar.")
+    parser.add_argument('--hide-header',
+                        default=False,
+                        dest='hide_header', 
+                        action='store_true',
+                        help="Hide header events from calendar.")
 
     return parser.parse_args()
 
 
 def main():
-    arguments = _get_arguments()
+    args = _get_arguments()
     
-    if arguments.keepalive:
-        _keepalive(arguments)
+    if args.keepalive:
+        _keepalive(args)
         exit()
 
-    password = _get_password(arguments.login)
+    password = _get_password(args.login)
+    args.password = password
     
-    google_credentials = gauth.get_credentials(arguments.credentials)
-    if not gcalendar.has_calendar(google_credentials, arguments.calendar):
-        gcalendar.create_calendar(google_credentials, arguments.calendar)
+    google_credentials = gauth.get_credentials(args.credentials)
+    if not gcalendar.has_calendar(google_credentials, args.calendar):
+        gcalendar.create_calendar(google_credentials, args.calendar)
     
-    lectio_schedule = lectio.get_schedule(arguments.school_id,
-                                            arguments.user_type,
-                                            arguments.user_id,
-                                            arguments.weeks,
-                                            arguments.login,
-                                            password)
+    lectio_schedule = lectio.get_schedule(args)
     google_schedule = gcalendar.get_schedule(google_credentials,
-                                                arguments.calendar,
-                                                arguments.weeks)
+                                                args.calendar,
+                                                args.weeks)
     if not lesson.schedules_are_identical(lectio_schedule, google_schedule):
         gcalendar.update_calendar_with_schedule(google_credentials,
-                                                arguments.calendar,
+                                                args.calendar,
                                                 google_schedule,
                                                 lectio_schedule)
 
 
-def _keepalive(arguments):
-    lectio.get_schedule(arguments.school_id,
-                        arguments.user_type,
-                        arguments.user_id,
-                        1)
+def _keepalive(args):
+    args.weeks = 1
+    lectio.get_schedule(args)
 
 
 def _get_password(login):
