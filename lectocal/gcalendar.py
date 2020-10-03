@@ -25,11 +25,7 @@ SERVICE_NAME = "calendar"
 SERVICE_VERSION = "v3"
 
 DEFAULT_TIME_ZONE = pytz.timezone("Europe/Copenhagen")
-LESSON_STATUS = {"10": "normal", "5": "changed", "11": "cancelled"}
-
-
-class InvalidStatusError(Exception):
-    """ Lesson status can only take the values 10, 5 and 11 """
+LESSON_STATUS = {"7": "normal", "2": "changed", "11": "cancelled"}
 
 
 class CalendarNotFoundError(object):
@@ -120,8 +116,7 @@ def _get_status_from_color(colorId):
     try:
         return LESSON_STATUS[colorId]
     except KeyError:
-        raise InvalidStatusError("Color: {} is not valid as status.".format(
-            colorId))
+        return "invalid status" # to get the event removed
 
 
 def _get_datetime_from_field(field):

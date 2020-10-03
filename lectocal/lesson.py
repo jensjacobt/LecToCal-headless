@@ -16,7 +16,7 @@ import copy
 import hashlib
 import datetime
 
-STATUS_COLORS = {"normal": "10", "changed": "5", "cancelled": "11"}
+STATUS_COLORS = {"normal": "7", "changed": "2", "cancelled": "11"}
 
 
 class Lesson(object):
