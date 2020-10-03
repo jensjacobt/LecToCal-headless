@@ -37,7 +37,7 @@ def _retreive_credentials(credentials_store):
 
 def get_credentials(credentials_store):
     if not _has_valid_credentials(credentials_store):
-        raise CredentialsMissingError("No credentials found at: {}"
+        raise CredentialsMissingError("No valid credentials found at: {}"
                                       .format(credentials_store))
     return _retreive_credentials(credentials_store)
 
