@@ -71,9 +71,9 @@ class Lesson(object):
 
     def _gen_id(self):
         lesson_string = str(self.summary) + str(self.status) + \
-                        str(self.start) + str(self.end) + \
-                        str(self.location) + str(self.description) + \
-                        str(self.link)
+            str(self.start) + str(self.end) + \
+            str(self.location) + str(self.description) + \
+            str(self.link)
         hasher = hashlib.sha256()
         hasher.update(bytes(lesson_string, "utf8"))
         hash_value = hasher.hexdigest()
@@ -96,4 +96,4 @@ class Lesson(object):
 
 def schedules_are_identical(schedule1, schedule2):
     return all(lesson in schedule1 for lesson in schedule2) and \
-           all(lesson in schedule2 for lesson in schedule1)
+        all(lesson in schedule2 for lesson in schedule1)

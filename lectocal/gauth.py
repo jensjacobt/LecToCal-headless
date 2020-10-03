@@ -77,5 +77,6 @@ def main():
                          arguments.scopes,
                          arguments)
 
+
 if __name__ == '__main__':
     main()

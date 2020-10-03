@@ -6,6 +6,7 @@ def readme():
     with open("README.md", encoding="utf-8") as f:
         return f.read()
 
+
 setup(
     name="lectocal",
     version="1.2.1",

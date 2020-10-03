@@ -38,7 +38,7 @@ class CalendarNotFoundError(object):
 
 def _get_calendar_service(google_credentials):
     return googleapiclient.discovery.build(SERVICE_NAME, SERVICE_VERSION,
-                                     http=google_credentials.authorize(Http()))
+                                           http=google_credentials.authorize(Http()))
 
 
 def has_calendar(google_credentials, calendar_name):
@@ -46,9 +46,9 @@ def has_calendar(google_credentials, calendar_name):
     page_token = None
     while True:
         calendar_list = service \
-                        .calendarList() \
-                        .list(pageToken=page_token) \
-                        .execute()
+            .calendarList() \
+            .list(pageToken=page_token) \
+            .execute()
         for calendar_entry in calendar_list['items']:
             if calendar_entry["summary"] == calendar_name:
                 return True
@@ -72,9 +72,9 @@ def _get_calendar_id_for_name(google_credentials, calendar_name):
     page_token = None
     while True:
         calendar_list = service \
-                        .calendarList() \
-                        .list(pageToken=page_token) \
-                        .execute()
+            .calendarList() \
+            .list(pageToken=page_token) \
+            .execute()
         for calendar_entry in calendar_list['items']:
             if calendar_entry["summary"] == calendar_name:
                 return calendar_entry["id"]
@@ -103,12 +103,12 @@ def _get_events_in_date_range(service, calendar_id, start, end):
     page_token = None
     while True:
         events = service \
-                 .events() \
-                 .list(calendarId=calendar_id,
-                       pageToken=page_token,
-                       timeMax=DEFAULT_TIME_ZONE.localize(end).isoformat(),
-                       timeMin=DEFAULT_TIME_ZONE.localize(start).isoformat()) \
-                 .execute()
+            .events() \
+            .list(calendarId=calendar_id,
+                  pageToken=page_token,
+                  timeMax=DEFAULT_TIME_ZONE.localize(end).isoformat(),
+                  timeMin=DEFAULT_TIME_ZONE.localize(start).isoformat()) \
+            .execute()
         all_events += events["items"]
         page_token = events.get('nextPageToken')
         if not page_token:
@@ -121,7 +121,7 @@ def _get_status_from_color(colorId):
         return LESSON_STATUS[colorId]
     except KeyError:
         raise InvalidStatusError("Color: {} is not valid as status.".format(
-                                  colorId))
+            colorId))
 
 
 def _get_datetime_from_field(field):
@@ -165,6 +165,7 @@ def _parse_events_to_schedule(events):
         schedule.append(_parse_event_to_lesson(event))
     return schedule
 
+
 def get_schedule(google_credentials, calendar_name, n_weeks):
     service = _get_calendar_service(google_credentials)
     calendar_id = _get_calendar_id_for_name(google_credentials, calendar_name)
@@ -173,12 +174,14 @@ def get_schedule(google_credentials, calendar_name, n_weeks):
     events = _get_events_in_date_range(service, calendar_id, start, end)
     return _parse_events_to_schedule(events)
 
+
 @backoff.on_exception(backoff.expo, HttpError,  max_tries=8)
 def _delete_lesson(service, calendar_id, lesson_id):
     service \
         .events() \
         .delete(calendarId=calendar_id, eventId=lesson_id) \
         .execute()
+
 
 @backoff.on_exception(backoff.expo, HttpError,  max_tries=4)
 def _add_lesson(service, calendar_id, lesson):
@@ -187,6 +190,7 @@ def _add_lesson(service, calendar_id, lesson):
         .events() \
         .insert(calendarId=calendar_id, body=lesson.to_gcalendar_format()) \
         .execute()
+
 
 @backoff.on_exception(backoff.expo, HttpError,  max_tries=8)
 def _update_lesson(service, calendar_id, lesson):
@@ -201,22 +205,22 @@ def _update_lesson(service, calendar_id, lesson):
 def _delete_removed_lessons(service, calendar_id, old_schedule, new_schedule):
     for old_lesson in old_schedule:
         if not any(new_lesson.id == old_lesson.id
-            for new_lesson in new_schedule):
-                _delete_lesson(service, calendar_id, old_lesson.id)
+                   for new_lesson in new_schedule):
+            _delete_lesson(service, calendar_id, old_lesson.id)
 
 
 def _add_new_lessons(service, calendar_id, old_schedule, new_schedule):
     for new_lesson in new_schedule:
         if not any(old_lesson.id == new_lesson.id
-            for old_lesson in old_schedule):
-                try:
-                    _add_lesson(service, calendar_id, new_lesson)
-                except HttpError as err:
-                    #Status code 409 is conflict. In this case, it means the id already exists.
-                    if err.resp.status == 409:
-                        _update_lesson(service, calendar_id, new_lesson)
-                    else:
-                        raise err
+                   for old_lesson in old_schedule):
+            try:
+                _add_lesson(service, calendar_id, new_lesson)
+            except HttpError as err:
+                # Status code 409 is conflict. In this case, it means the id already exists.
+                if err.resp.status == 409:
+                    _update_lesson(service, calendar_id, new_lesson)
+                else:
+                    raise err
 
 
 def _update_current_lessons(service, calendar_id, old_schedule, new_schedule):

@@ -67,21 +67,22 @@ def main():
     except:
         print("\nLogin cancelled")
         sys.exit()
-    
-    
+
     google_credentials = gauth.get_credentials(arguments.credentials)
     if not gcalendar.has_calendar(google_credentials, arguments.calendar):
         gcalendar.create_calendar(google_credentials, arguments.calendar)
-    
+
     lectio_schedule = lectio.get_schedule(arguments.school_id,
-                                            arguments.user_type,
-                                            arguments.user_id,
-                                            arguments.weeks,
-                                            login,
-                                            password)
+                                          arguments.user_type,
+                                          arguments.user_id,
+                                          arguments.weeks,
+                                          login,
+                                          password)
+
     google_schedule = gcalendar.get_schedule(google_credentials,
-                                                arguments.calendar,
-                                                arguments.weeks)
+                                             arguments.calendar,
+                                             arguments.weeks)
+
     if not lesson.schedules_are_identical(lectio_schedule, google_schedule):
         gcalendar.update_calendar_with_schedule(google_credentials,
                                                 arguments.calendar,
