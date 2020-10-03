@@ -246,21 +246,25 @@ def _get_info_from_title(title):
     return summary, status, start_time, end_time, location, description, is_top
 
 
-def _parse_element_to_lesson(element):
+def _parse_element_to_lesson(element, show_top):
     link = element.get("href")
     id = None
     if link:
         id = _get_id_from_link(link)
         link = _get_complete_link(link)
+    title = element.get("data-additionalinfo")
     summary, status, start_time, end_time, location, description, is_top = \
-        _get_info_from_title(element.get("data-additionalinfo"))
-    if (not is_top) and (status != "cancelled"):
-        return lesson.Lesson(id, summary, status, start_time, end_time, location, description, link)
-    else:
+        _get_info_from_title(title)
+
+    if not show_top and is_top:
         return None
+    elif status == "cancelled":
+        return None
+    else:
+        return lesson.Lesson(id, summary, status, start_time, end_time, location, description, link)
 
 
-def _parse_page_to_lessons(page):
+def _parse_page_to_lessons(page, show_top):
     tree = html.fromstring(page)
     # Find all a elements with class s2skemabrik in page
     lesson_elements = tree.xpath("//a[contains(concat("
@@ -268,15 +272,15 @@ def _parse_page_to_lessons(page):
                                  "' s2skemabrik ')]")
     lessons = []
     for element in lesson_elements:
-        lesson = _parse_element_to_lesson(element)
+        lesson = _parse_element_to_lesson(element, show_top)
         if lesson is not None:
             lessons.append(lesson)
     return lessons
 
 
-def _retreive_week_schedule(school_id, user_type, user_id, week):
+def _retreive_week_schedule(school_id, user_type, user_id, week, show_top):
     r = _get_user_page(school_id, user_type, user_id, week=week)
-    schedule = _parse_page_to_lessons(r.content)
+    schedule = _parse_page_to_lessons(r.content, show_top)
     return schedule
 
 
@@ -288,12 +292,12 @@ def _filter_for_duplicates(schedule):
     return filtered_schedule
 
 
-def _retreive_user_schedule(school_id, user_type, user_id, n_weeks):
+def _retreive_user_schedule(school_id, user_type, user_id, n_weeks, show_top):
     schedule = []
     for week_offset in range(n_weeks + 1):
         week = _get_lectio_weekformat_with_offset(week_offset)
         week_schedule = _retreive_week_schedule(
-            school_id, user_type, user_id, week)
+            school_id, user_type, user_id, week, show_top)
         schedule += week_schedule
     filtered_schedule = _filter_for_duplicates(schedule)
     return filtered_schedule
@@ -311,9 +315,9 @@ def _user_exists(school_id, user_type, user_id, login, password):
     return r.status_code == requests.codes.ok
 
 
-def get_schedule(school_id, user_type, user_id, n_weeks, login, password):
+def get_schedule(school_id, user_type, user_id, n_weeks, show_top, login, password):
     if not _user_exists(school_id, user_type, user_id, login, password):
         raise UserDoesNotExistError("Couldn't find user - school: {}, "
                                     "type: {}, id: {}, login: {} - in Lectio.".format(
                                         school_id, user_type, user_id, login))
-    return _retreive_user_schedule(school_id, user_type, user_id, n_weeks)
+    return _retreive_user_schedule(school_id, user_type, user_id, n_weeks, show_top)

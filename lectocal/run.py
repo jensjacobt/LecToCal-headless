@@ -51,6 +51,11 @@ def _get_arguments():
                         default=4,
                         help="Number of weeks to parse the schedule for. "
                         "(default: 4)")
+    parser.add_argument('--showtop',
+                        default=False,
+                        dest='show_top',
+                        action='store_true',
+                        help="If set, copy events from the Lectio calendar's header to Google Calendar.")
 
     return parser.parse_args()
 
@@ -76,6 +81,7 @@ def main():
                                           arguments.user_type,
                                           arguments.user_id,
                                           arguments.weeks,
+                                          arguments.show_top,
                                           login,
                                           password)
 
