@@ -199,6 +199,7 @@ def _get_time_from_line(line):
         end = datetime.datetime.combine(end_date, end_time)
     else:
         end = end_date
+
     return start, end, is_top
 
 
@@ -221,6 +222,7 @@ def _get_info_from_title(title):
     status = start_time = end_time = location = None
     lines = title.splitlines()
     headerSection = True
+    is_top = False
     for line in lines:
         if headerSection:
             if line == '':
