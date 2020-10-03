@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pkg_resources
 import argparse
 import oauth2client.file
 import oauth2client.client
 import oauth2client.tools
+import pkg_resources
 
 
 class CredentialsMissingError(Exception):

@@ -24,8 +24,8 @@ USER_TYPE = {"student": "elev", "teacher": "laerer"}
 LESSON_STATUS = {None: "normal", "Ændret!": "changed", "Aflyst!": "cancelled"}
 
 
-class CannotLoginToLectioError(Exception):
-    """ Could not login to Lectio (using cookie or login provided). """
+class UserDoesNotExistError(Exception):
+    """ Attempted to get a non-existing user from Lectio. """
 
 
 class IdNotFoundInLinkError(Exception):
@@ -44,26 +44,26 @@ class InvalidLocationError(Exception):
     """ The line doesn't include any location. """
 
 
-def _get_user_page(args, week = ""):
+def _get_user_page(school_id, user_type, user_id, week = "", login = "", password = ""):
     URL_TEMPLATE = "https://www.lectio.dk/lectio/{0}/" \
                    "SkemaNy.aspx?type={1}&{1}id={2}&week={3}"
                    
-    LOGIN_URL = "https://www.lectio.dk/lectio/{0}/login.aspx".format(args.school_id)
+    LOGIN_URL = "https://www.lectio.dk/lectio/{0}/login.aspx".format(school_id)
     
     # Start requests session
     s = requests.Session()
     
-    if(args.login != ""):
+    if(login != ""):
         # Get eventvalidation key
         result = s.get(LOGIN_URL)
         tree = html.fromstring(result.text)
         authenticity_token = list(set(tree.xpath("//input[@name='__EVENTVALIDATION']/@value")))[0]
 
-        # Create payloadweek
+        # Create payload
         payload = {
-            "m$Content$username2": args.login,
-            "m$Content$password2": args.password,
-            "m$Content$passwordHidden": args.password,
+            "m$Content$username": login,
+            "m$Content$password": password,
+            "m$Content$passwordHidden": password,
             "__EVENTVALIDATION": authenticity_token,
             "__EVENTTARGET": "m$Content$submitbtn2",
             "__EVENTARGUMENT": "",
@@ -83,9 +83,9 @@ def _get_user_page(args, week = ""):
             s.cookies.update(pickle.load(f))
         
     # Scrape url and save cookies to file
-    r = s.get(URL_TEMPLATE.format(args.school_id,
-                                  USER_TYPE[args.user_type],
-                                  args.user_id,
+    r = s.get(URL_TEMPLATE.format(school_id,
+                                  USER_TYPE[user_type],
+                                  user_id,
                                   week),
                      allow_redirects=False)
     with open('cookie.txt', 'wb') as f:
@@ -114,12 +114,12 @@ def _get_complete_link(link):
 
 
 def _is_status_line(line):
-    match = re.search("Ændret!|Aflyst!", line)
+    match = re.search(r"Ændret!|Aflyst!", line)
     return match is not None
 
 
 def _is_location_line(line):
-    match = re.search("Lokaler?: ", line)
+    match = re.search(r"Lokaler?: ", line)
     return match is not None
 
 
@@ -143,7 +143,7 @@ def _get_status_from_line(line):
 
 
 def _get_location_from_line(line):
-    match = re.search("Lokaler?: (.*)", line)
+    match = re.search(r"Lokaler?: (.*)", line)
     if match is None:
         raise InvalidLocationError("No location found in line: '{}'"
                                    .format(line))
@@ -178,10 +178,12 @@ def _get_time_from_line(line):
     start_date = _get_date_from_match(match.group(1))
     start_time = _get_time_from_match(match.group(2))
 
+    is_top = False
     if start_time:
         start = datetime.datetime.combine(start_date, start_time)
     else:
         start = start_date
+        is_top = True
 
     end_date = _get_date_from_match(match.group(3))
     end_time = _get_time_from_match(match.group(4))
@@ -193,7 +195,7 @@ def _get_time_from_line(line):
         end = datetime.datetime.combine(end_date, end_time)
     else:
         end = end_date
-    return start, end
+    return start, end, is_top
 
 
 def _add_line_to_text(line, text):
@@ -207,12 +209,6 @@ def _add_section_to_summary(section, summary):
     if summary != "" and section != "":
         summary += " " + u"\u2022" + " "
     summary += section
-    return summary
-
-def _clean_summary(summary):
-    summary = summary.replace("Hold: ", "")
-    summary = summary.replace("Lærere: ", "")
-    summary = re.sub(r"Lærer: [^(]*\(([^)]*)\)", r"\1", summary)
     return summary
 
 
@@ -229,15 +225,17 @@ def _get_info_from_title(title):
             if _is_status_line(line):
                 status = _get_status_from_line(line)
             elif _is_time_line(line):
-                start_time, end_time = _get_time_from_line(line)
+                start_time, end_time, is_top = _get_time_from_line(line)
             elif _is_location_line(line):
                 location = _get_location_from_line(line)
             else:
                 summary = _add_section_to_summary(line, summary)
         else:
             description = _add_line_to_text(line, description)
-    summary = _clean_summary(summary)
-    return summary, status, start_time, end_time, location, description
+    # Remove extra text in the summary
+    summary = summary.replace("Hold: ", "").replace("Lærere: ", "")
+    summary = re.sub(r"Lærer: [^(]*\(([^)]*)\)", r"\1", summary)
+    return summary, status, start_time, end_time, location, description, is_top
 
 
 def _parse_element_to_lesson(element):
@@ -246,29 +244,31 @@ def _parse_element_to_lesson(element):
     if link:
         id = _get_id_from_link(link)
         link = _get_complete_link(link)
-    summary, status, start_time, end_time, location, description = \
+    summary, status, start_time, end_time, location, description, is_top = \
         _get_info_from_title(element.get("data-additionalinfo"))
-    return lesson.Lesson(id, summary, status, start_time, end_time, location, description, link)
+    if (not is_top) and (status != "cancelled"):
+        return lesson.Lesson(id, summary, status, start_time, end_time, location, description, link)
+    else:
+        return None
 
 
-def _parse_elements_to_lessons(args, lesson_elements):
-    lessons = []
-    for element in lesson_elements:
-        lesson = _parse_element_to_lesson(element)
-        if not (args.hide_header and type(lesson.start) == datetime.date):
-            if not (args.hide_cancelled and lesson.status == "cancelled"):
-                lessons.append(lesson)
-    return lessons
-
-
-def _retreive_week_schedule(args, week):
-    r = _get_user_page(args, week)
-    tree = html.fromstring(r.content)
+def _parse_page_to_lessons(page):
+    tree = html.fromstring(page)
     # Find all a elements with class s2skemabrik in page
     lesson_elements = tree.xpath("//a[contains(concat("
                                  "' ', normalize-space(@class), ' '),"
                                  "' s2skemabrik ')]")
-    schedule = _parse_elements_to_lessons(args, lesson_elements)
+    lessons = []
+    for element in lesson_elements:
+        lesson = _parse_element_to_lesson(element)
+        if lesson is not None:
+            lessons.append(lesson)
+    return lessons
+
+
+def _retreive_week_schedule(school_id, user_type, user_id, week, login = "", password = ""):
+    r = _get_user_page(school_id, user_type, user_id, week, login = "", password = "")
+    schedule = _parse_page_to_lessons(r.content)
     return schedule
 
 
@@ -280,24 +280,29 @@ def _filter_for_duplicates(schedule):
     return filtered_schedule
 
 
-def _retreive_user_schedule(args):
+def _retreive_user_schedule(school_id, user_type, user_id, n_weeks, login = "", password = ""):
     schedule = []
-    for week_offset in range(args.weeks + 1):
+    for week_offset in range(n_weeks + 1):
         week = _get_lectio_weekformat_with_offset(week_offset)
-        week_schedule = _retreive_week_schedule(args, week)
+        week_schedule = _retreive_week_schedule(school_id,
+                                                user_type,
+                                                user_id,
+                                                week, 
+                                                login = "", 
+                                                password = "")
         schedule += week_schedule
     filtered_schedule = _filter_for_duplicates(schedule)
     return filtered_schedule
 
 
-def _can_login(args):
-    r = _get_user_page(args)
+def _user_exists(school_id, user_type, user_id, login = "", password = ""):
+    r = _get_user_page(school_id, user_type, user_id, "", login, password)
     return r.status_code == requests.codes.ok
 
 
-def get_schedule(args):
-    if not _can_login(args):
-        raise CannotLoginToLectioError(
-            "Couldn't login user - school: {}, type: {}, id: {}, login: {} "
-            "- in Lectio.".format(args.school_id, args.user_type, args.user_id, args.login))
-    return _retreive_user_schedule(args)
+def get_schedule(school_id, user_type, user_id, n_weeks, login = "", password = ""):
+    if not _user_exists(school_id, user_type, user_id, login, password):
+        raise UserDoesNotExistError("Couldn't find user - school: {}, "
+                                    "type: {}, id: {}, login: {} - in Lectio.".format(
+                                        school_id, user_type, user_id, login))
+    return _retreive_user_schedule(school_id, user_type, user_id, n_weeks, login = "", password = "")

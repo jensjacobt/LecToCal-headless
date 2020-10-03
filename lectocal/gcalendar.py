@@ -16,7 +16,7 @@ import backoff
 import datetime
 from httplib2 import Http
 import dateutil.parser
-import apiclient.discovery
+import googleapiclient.discovery
 import pytz
 from googleapiclient.errors import HttpError
 from . import lesson
@@ -37,7 +37,7 @@ class CalendarNotFoundError(object):
 
 
 def _get_calendar_service(google_credentials):
-    return apiclient.discovery.build(SERVICE_NAME, SERVICE_VERSION,
+    return googleapiclient.discovery.build(SERVICE_NAME, SERVICE_VERSION,
                                      http=google_credentials.authorize(Http()))
 
 
@@ -151,7 +151,7 @@ def _parse_event_to_lesson(event):
     if "description" in event:
         description = event["description"]
     else:
-        description = ""
+        description = None
     if "source" in event and "url" in event["source"]:
         link = event["source"]["url"]
     else:
@@ -164,7 +164,6 @@ def _parse_events_to_schedule(events):
     for event in events:
         schedule.append(_parse_event_to_lesson(event))
     return schedule
-
 
 def get_schedule(google_credentials, calendar_name, n_weeks):
     service = _get_calendar_service(google_credentials)
@@ -199,17 +198,6 @@ def _update_lesson(service, calendar_id, lesson):
         .execute()
 
 
-def _add_lesson_or_update_lesson(service, calendar_id, new_lesson):
-    try:
-        _add_lesson(service, calendar_id, new_lesson)
-    except HttpError as err:
-        #Status code 409 is conflict. In this case, it means the id already exists.
-        if err.resp.status == 409:
-            _update_lesson(service, calendar_id, new_lesson)
-        else:
-            raise err
-
-
 def _delete_removed_lessons(service, calendar_id, old_schedule, new_schedule):
     for old_lesson in old_schedule:
         if not any(new_lesson.id == old_lesson.id
@@ -221,7 +209,14 @@ def _add_new_lessons(service, calendar_id, old_schedule, new_schedule):
     for new_lesson in new_schedule:
         if not any(old_lesson.id == new_lesson.id
             for old_lesson in old_schedule):
-                _add_lesson_or_update_lesson(service, calendar_id, new_lesson)
+                try:
+                    _add_lesson(service, calendar_id, new_lesson)
+                except HttpError as err:
+                    #Status code 409 is conflict. In this case, it means the id already exists.
+                    if err.resp.status == 409:
+                        _update_lesson(service, calendar_id, new_lesson)
+                    else:
+                        raise err
 
 
 def _update_current_lessons(service, calendar_id, old_schedule, new_schedule):
