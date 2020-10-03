@@ -6,6 +6,7 @@ def readme():
     with open("README.md", encoding="utf-8") as f:
         return f.read()
 
+
 setup(
     name="lectocal",
     version="1.2.1",
@@ -33,6 +34,7 @@ setup(
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
 
         # Environment Type
         "Environment :: No Input/Output (Daemon)",
@@ -50,8 +52,7 @@ setup(
         "pytz",
         "python-dateutil",
         "oauth2client",
-        "backoff",
-        "pickle"
+        "backoff"
     ],
     package_data={
         "lectocal": [

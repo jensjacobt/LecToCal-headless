@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pkg_resources
 import argparse
 import oauth2client.file
 import oauth2client.client
 import oauth2client.tools
+import pkg_resources
 
 
 class CredentialsMissingError(Exception):
@@ -37,7 +37,7 @@ def _retreive_credentials(credentials_store):
 
 def get_credentials(credentials_store):
     if not _has_valid_credentials(credentials_store):
-        raise CredentialsMissingError("No credentials found at: {}"
+        raise CredentialsMissingError("No valid credentials found at: {}"
                                       .format(credentials_store))
     return _retreive_credentials(credentials_store)
 
@@ -76,6 +76,7 @@ def main():
                          arguments.credentials,
                          arguments.scopes,
                          arguments)
+
 
 if __name__ == '__main__':
     main()
