@@ -55,7 +55,12 @@ def _get_arguments():
                         default=False,
                         dest='show_top',
                         action='store_true',
-                        help="If set, copy events from the Lectio calendar's header to Google Calendar.")
+                        help="If set, sync events from the Lectio's header to Google Calendar.")
+    parser.add_argument('--showcancelled',
+                        default=False,
+                        dest='show_cancelled',
+                        action='store_true',
+                        help="If set, sync cancelled events to Google Calendar.")
 
     return parser.parse_args()
 
@@ -82,6 +87,7 @@ def main():
                                           arguments.user_id,
                                           arguments.weeks,
                                           arguments.show_top,
+                                          arguments.show_cancelled,
                                           login,
                                           password)
 
