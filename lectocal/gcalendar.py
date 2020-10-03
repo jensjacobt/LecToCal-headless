@@ -146,7 +146,7 @@ def _parse_event_to_lesson(event):
     if "description" in event:
         description = event["description"]
     else:
-        description = ""
+        description = None
     if "source" in event and "url" in event["source"]:
         link = event["source"]["url"]
     else:

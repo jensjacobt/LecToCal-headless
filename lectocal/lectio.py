@@ -240,6 +240,8 @@ def _get_info_from_title(title):
                 summary = _add_section_to_summary(line, summary)
         else:
             description = _add_line_to_text(line, description)
+    if description == "":
+        description = None
     # Remove extra text in the summary
     summary = summary.replace("Hold: ", "").replace("Lærere: ", "")
     summary = re.sub(r"Lærer: [^(]*\(([^)]*)\)", r"\1", summary)
