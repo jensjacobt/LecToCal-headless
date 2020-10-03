@@ -44,7 +44,7 @@ class InvalidLocationError(Exception):
     """ The line doesn't include any location. """
 
 
-def _get_user_page(school_id, user_type, user_id, week="", login="", password=""):
+def _get_user_page(school_id, user_type, user_id, login="", password="", week=""):
     URL_TEMPLATE = "https://www.lectio.dk/lectio/{0}/" \
                    "SkemaNy.aspx?type={1}&{1}id={2}&week={3}"
 
@@ -273,8 +273,7 @@ def _parse_page_to_lessons(page):
 
 
 def _retreive_week_schedule(school_id, user_type, user_id, week, login="", password=""):
-    r = _get_user_page(school_id, user_type, user_id,
-                       week, login="", password="")
+    r = _get_user_page(school_id, user_type, user_id, week=week)
     schedule = _parse_page_to_lessons(r.content)
     return schedule
 
@@ -302,8 +301,8 @@ def _retreive_user_schedule(school_id, user_type, user_id, n_weeks, login="", pa
     return filtered_schedule
 
 
-def _user_exists(school_id, user_type, user_id, login="", password=""):
-    r = _get_user_page(school_id, user_type, user_id, "", login, password)
+def _user_exists(school_id, user_type, user_id, login, password):
+    r = _get_user_page(school_id, user_type, user_id, login, password)
     return r.status_code == requests.codes.ok
 
 
