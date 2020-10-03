@@ -146,7 +146,7 @@ def _parse_event_to_lesson(event):
     if "description" in event:
         description = event["description"]
     else:
-        description = None
+        description = ""
     if "source" in event and "url" in event["source"]:
         link = event["source"]["url"]
     else:
@@ -227,6 +227,6 @@ def update_calendar_with_schedule(
         google_credentials, calendar_name, old_schedule, new_schedule):
     service = _get_calendar_service(google_credentials)
     calendar_id = _get_calendar_id_for_name(google_credentials, calendar_name)
-    _delete_removed_lessons(service, calendar_id, old_schedule, new_schedule)
-    _add_new_lessons(service, calendar_id, old_schedule, new_schedule)
     _update_current_lessons(service, calendar_id, old_schedule, new_schedule)
+    _add_new_lessons(service, calendar_id, old_schedule, new_schedule)
+    _delete_removed_lessons(service, calendar_id, old_schedule, new_schedule)
