@@ -23,6 +23,7 @@ USER_TYPE = {"student": "elev", "teacher": "laerer"}
 LESSON_STATUS = {None: "normal", "Ændret!": "changed", "Aflyst!": "cancelled"}
 URL_TEMPLATE = "https://www.lectio.dk/lectio/{0}/SkemaNy.aspx?type={1}&{1}id={2}&week={3}"
 LOGIN_URL_TEMPLATE = "https://www.lectio.dk/lectio/{0}/login.aspx"
+SPACER = " " + u"\u2022" + " "
 cookies = None
 
 
@@ -48,6 +49,14 @@ class InvalidTimeLineError(Exception):
 
 class InvalidLocationError(Exception):
     """ The line doesn't include any location. """
+
+
+class InvalidRessourcesError(Exception):
+    """ The line doesn't include any ressources. """
+
+
+class InvalidGroupsError(Exception):
+    """ The line doesn't include any groups. """
 
 
 def _login(school_id, login, password):
@@ -124,9 +133,48 @@ def _is_status_line(line):
     return match is not None
 
 
+def _get_status_from_line(line):
+    try:
+        return LESSON_STATUS[line]
+    except KeyError:
+        raise InvalidStatusError("Line: '{}' has no valid status".format(line))
+
+
 def _is_location_line(line):
     match = re.search(r"Lokaler?: ", line)
     return match is not None
+
+
+def _get_location_from_line(line):
+    match = re.search(r"Lokaler?: (.*)", line)
+    if match is None:
+        raise InvalidLocationError("No location found in line: '{}'"
+                                   .format(line))
+    return match.group(1)
+
+
+def _is_groups_line(line):
+    return line.startswith("Hold: ")
+
+
+def _get_groups_from_line(line):
+    match = re.search(r"Hold: (.*)", line)
+    if match is None:
+        raise InvalidGroupsError("No groups found in line: '{}'"
+                                 .format(line))
+    return match.group(1)
+
+
+def _is_ressources_line(line):
+    return line.startswith("Ressourcer: ")
+
+
+def _get_ressources_from_line(line):
+    match = re.search(r"Ressourcer: (.*)", line)
+    if match is None:
+        raise InvalidRessourcesError("No ressources found in line: '{}'"
+                                     .format(line))
+    return match.group(1)
 
 
 def _is_time_line(line):
@@ -139,21 +187,6 @@ def _is_time_line(line):
     match = re.search(r"\d{1,2}/\d{1,2}-\d{4} (?:Hele dagen|\d{2}:\d{2} til "
                       r"(?:\d{1,2}/\d{1,2}-\d{4} )?\d{2}:\d{2})", line)
     return match is not None
-
-
-def _get_status_from_line(line):
-    try:
-        return LESSON_STATUS[line]
-    except KeyError:
-        raise InvalidStatusError("Line: '{}' has no valid status".format(line))
-
-
-def _get_location_from_line(line):
-    match = re.search(r"Lokaler?: (.*)", line)
-    if match is None:
-        raise InvalidLocationError("No location found in line: '{}'"
-                                   .format(line))
-    return match.group(1)
 
 
 def _get_date_from_match(match):
@@ -212,39 +245,77 @@ def _add_line_to_text(line, text):
     return text
 
 
-def _add_section_to_summary(section, summary):
-    if summary != "" and section != "":
-        summary += " " + u"\u2022" + " "
-    summary += section
+def _append_section_to_summary(section, summary):
+    spacer = SPACER if summary else ""
+    summary += spacer + section
     return summary
 
 
-def _get_info_from_title(title):
-    summary = description = ""
+def _prepend_section_to_summary(section, summary):
+    spacer = SPACER if summary else ""
+    summary = section + spacer + summary
+    return summary
+
+
+def _extract_lesson_info(title):
+    summary = description = event_title = groups = ressources = ""
     status = start_time = end_time = location = None
     lines = title.splitlines()
-    headerSection = True
+    header_section = True
     is_top = False
-    for line in lines:
-        if headerSection:
+    offset = 0
+
+    # Find status and event title (if present) and offset
+    if len(lines) >= 2:
+        line = lines[0]
+        if _is_status_line(line):
+            status = _get_status_from_line(line)
+            line = lines[1]
+            offset += 1
+        if not _is_time_line(line):
+            event_title = line
+            offset += 1
+
+    # Get info from all lines
+    for line in lines[offset:]:
+        if header_section:
             if line == '':
-                headerSection = False
+                header_section = False
                 continue
-            if _is_status_line(line):
-                status = _get_status_from_line(line)
             elif _is_time_line(line):
                 start_time, end_time, is_top = _get_time_from_line(line)
             elif _is_location_line(line):
                 location = _get_location_from_line(line)
+            elif _is_groups_line(line):
+                groups = _get_groups_from_line(line)
+            elif _is_ressources_line(line):
+                ressources = _get_ressources_from_line(line)
             else:
-                summary = _add_section_to_summary(line, summary)
+                summary = _append_section_to_summary(line, summary)
         else:
             description = _add_line_to_text(line, description)
-    if description == "":
-        description = None
+
     # Remove extra text in the summary
-    summary = summary.replace("Hold: ", "").replace("Lærere: ", "")
+    summary = summary.replace("Lærere: ", "")
     summary = re.sub(r"Lærer: [^(]*\(([^)]*)\)", r"\1", summary)
+
+    # Construct summary and description
+    if ressources:
+        description = "Ressoucer: " + ressources + "\n\n" + description
+    if location:
+        summary = _append_section_to_summary(location, summary)
+    if groups:
+        summary = _prepend_section_to_summary(groups, summary)
+        if groups.find("Alle") == -1:
+            description = event_title + "\n\n" + description
+        else:
+            summary = _prepend_section_to_summary(event_title, summary)
+    else:
+        summary = _prepend_section_to_summary(event_title, summary)
+
+    if description == "":  # needed for comparison
+        description = None
+
     return summary, status, start_time, end_time, location, description, is_top
 
 
@@ -254,9 +325,9 @@ def _parse_element_to_lesson(element, show_top, show_cancelled):
     if link:
         id = _get_id_from_link(link)
         link = _get_complete_link(link)
-    title = element.get("data-additionalinfo")
+    info = element.get("data-additionalinfo")
     summary, status, start_time, end_time, location, description, is_top = \
-        _get_info_from_title(title)
+        _extract_lesson_info(info)
 
     if not show_top and is_top:
         return None
