@@ -14,14 +14,16 @@
 
 import datetime
 import re
-import requests
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from lxml import html
 from . import lesson
 
 
 USER_TYPE = {"student": "elev", "teacher": "laerer"}
 LESSON_STATUS = {None: "normal", "Ændret!": "changed", "Aflyst!": "cancelled"}
-URL_TEMPLATE = "https://www.lectio.dk/lectio/{0}/SkemaNy.aspx?type={1}&{1}id={2}&week={3}"
+URL_TEMPLATE = "https://www.lectio.dk/lectio/{0}/SkemaNy.aspx?{1}id={2}&week={3}"
 LOGIN_URL_TEMPLATE = "https://www.lectio.dk/lectio/{0}/login.aspx"
 SPACER = " " + u"\u2022" + " "
 cookies = None
@@ -30,81 +32,33 @@ cookies = None
 class UserDoesNotExistError(Exception):
     """ Attempted to get a non-existing user from Lectio. """
 
-
 class CookiesNotSet(Exception):
     """ Cookies not set. Login before you retrieve calendar pages. """
-
 
 class IdNotFoundInLinkError(Exception):
     """ All lessons with a link should include an ID. """
 
-
 class InvalidStatusError(Exception):
     """ Lesson status can only take the values Ændret!, Aflyst! and None. """
-
 
 class InvalidTimeLineError(Exception):
     """ The line doesn't include any valid formatting of time. """
 
-
 class InvalidLocationError(Exception):
     """ The line doesn't include any location. """
 
-
 class InvalidRessourcesError(Exception):
     """ The line doesn't include any ressources. """
-
 
 class InvalidGroupsError(Exception):
     """ The line doesn't include any groups. """
 
 
-def _login(school_id, login, password):
-    # Start requests session
-    session = requests.Session()
 
-    login_url = LOGIN_URL_TEMPLATE.format(school_id)
-
-    # Get eventvalidation key
-    result = session.get(login_url)
-    tree = html.fromstring(result.text)
-    authenticity_token = list(
-        set(tree.xpath("//input[@name='__EVENTVALIDATION']/@value")))[0]
-
-    # Create payload
-    payload = {
-        "m$Content$username": login,
-        "m$Content$password": password,
-        "m$Content$passwordHidden": password,
-        "__EVENTVALIDATION": authenticity_token,
-        "__EVENTTARGET": "m$Content$submitbtn2",
-        "__EVENTARGUMENT": "",
-        "LectioPostbackId": ""
-    }
-
-    # Perform login
-    result = session.post(login_url, data=payload,
-                          headers=dict(referer=login_url))
-
-    return session.cookies
-
-
-def _get_user_page(school_id, user_type, user_id, week=""):
-    global cookies
-
-    # Start requests session
-    session = requests.Session()
-
-    # Get cookie
-    if cookies == None:
-        raise CookiesNotSet()
-    session.cookies.update(cookies)
-
-    # Scrape url
+def _get_user_page(driver, school_id, user_type, user_id, week):
     url = URL_TEMPLATE.format(school_id, USER_TYPE[user_type], user_id, week)
-    response = session.get(url, allow_redirects=False)
-
-    return response
+    driver.get(url)
+    return driver.page_source
 
 
 def _get_lectio_weekformat_with_offset(offset):
@@ -257,10 +211,10 @@ def _prepend_section_to_summary(section, summary):
     return summary
 
 
-def _extract_lesson_info(title):
+def _extract_lesson_info(tooltip):
     summary = description = event_title = groups = ressources = ""
     status = start_time = end_time = location = None
-    lines = title.splitlines()
+    lines = tooltip.splitlines()
     header_section = True
     is_top = False
     offset = 0
@@ -279,7 +233,7 @@ def _extract_lesson_info(title):
     # Get info from all lines
     for line in lines[offset:]:
         if header_section:
-            if line == '':
+            if line == '' and start_time is not None:
                 header_section = False
                 continue
             elif _is_time_line(line):
@@ -291,7 +245,8 @@ def _extract_lesson_info(title):
             elif _is_ressources_line(line):
                 ressources = _get_ressources_from_line(line)
             else:
-                summary = _append_section_to_summary(line, summary)
+                pass
+                # summary = _append_section_to_summary(line, summary) # teachers (and students) added directly to event
         else:
             description = _add_line_to_text(line, description)
 
@@ -313,6 +268,7 @@ def _extract_lesson_info(title):
     else:
         summary = _prepend_section_to_summary(event_title, summary)
 
+    description = "" ################################################################################################# TODO: Handle this better
     if description == "":  # needed for comparison
         description = None
 
@@ -325,20 +281,22 @@ def _parse_element_to_lesson(element, show_top, show_cancelled):
     if link:
         id = _get_id_from_link(link)
         link = _get_complete_link(link)
-    info = element.get("data-additionalinfo")
+    tooltip = element.get("data-tooltip")
     summary, status, start_time, end_time, location, description, is_top = \
-        _extract_lesson_info(info)
+        _extract_lesson_info(tooltip)
 
     if not show_top and is_top:
         return None
     elif not show_cancelled and status == "cancelled":
         return None
+    elif not location:
+        return None ################################################################################################# TODO: Do this better
     else:
         return lesson.Lesson(id, summary, status, start_time, end_time, location, description, link)
 
 
-def _parse_page_to_lessons(page, show_top, show_cancelled):
-    tree = html.fromstring(page)
+def _parse_page_to_lessons(page_source, show_top, show_cancelled):
+    tree = html.fromstring(page_source)
     # Find all a elements with class s2skemabrik in page
     lesson_elements = tree.xpath("//a[contains(concat("
                                  "' ', normalize-space(@class), ' '),"
@@ -351,9 +309,9 @@ def _parse_page_to_lessons(page, show_top, show_cancelled):
     return lessons
 
 
-def _retreive_week_schedule(school_id, user_type, user_id, week, show_top, show_cancelled):
-    r = _get_user_page(school_id, user_type, user_id, week=week)
-    schedule = _parse_page_to_lessons(r.content, show_top, show_cancelled)
+def _retreive_week_schedule(driver, school_id, user_type, user_id, week, show_top, show_cancelled):
+    page_source = _get_user_page(driver, school_id, user_type, user_id, week=week)
+    schedule = _parse_page_to_lessons(page_source, show_top, show_cancelled)
     return schedule
 
 
@@ -365,32 +323,87 @@ def _filter_for_duplicates(schedule):
     return filtered_schedule
 
 
-def _retreive_user_schedule(school_id, user_type, user_id, n_weeks, show_top, show_cancelled):
+def _last_updated_event():
+    id = "updated"
+    summary = "Opdateret " + datetime.datetime.now().strftime("%d/%m %H:%M")
+    status = None
+
+    now = datetime.datetime.now()
+    monday = (now - datetime.timedelta(days = now.weekday())).date()
+    start_time = end_time = monday
+
+    description = None
+    location = None
+    link = None
+    l = lesson.Lesson(id, summary, status, start_time, end_time, location, description, link)
+    return l
+
+
+def _not_on_a_schedule_page(driver):
+    return len(driver.find_elements(By.CLASS_NAME, "tidsreg-wrapper")) == 0
+
+
+def _retreive_user_schedule(driver, school_id, user_type, user_id, n_weeks, show_top, show_cancelled):
     schedule = []
     for week_offset in range(n_weeks + 1):
         week = _get_lectio_weekformat_with_offset(week_offset)
         week_schedule = _retreive_week_schedule(
-            school_id, user_type, user_id, week, show_top, show_cancelled)
+            driver, school_id, user_type, user_id, week, show_top, show_cancelled)
+        if week_offset == 0 and _not_on_a_schedule_page(driver):
+            raise UserDoesNotExistError(
+                f"Couldn't log in user - school: {school_id}, type: {user_type}, id: {user_id} - in Lectio.")
         schedule += week_schedule
     filtered_schedule = _filter_for_duplicates(schedule)
+    filtered_schedule.append(_last_updated_event())
     return filtered_schedule
 
 
-def _user_exists(school_id, user_type, user_id, login, password):
-    global cookies
+def _login(driver, school_id, username, password):
+    driver.get(LOGIN_URL_TEMPLATE.format(school_id))
 
-    # Login and save cookie
-    cookies = _login(school_id, login, password)
-
-    # Open page
-    r = _get_user_page(school_id, user_type, user_id)
-
-    return r.status_code == requests.codes.ok
+    usernameInput = driver.find_element(By.NAME, "m$Content$username")
+    usernameInput.send_keys(username)
+    passwordInput = driver.find_element(By.NAME, "m$Content$password")
+    passwordInput.send_keys(password + Keys.RETURN)
+    
 
 
-def get_schedule(school_id, user_type, user_id, n_weeks, show_top, show_cancelled, login, password):
-    if not _user_exists(school_id, user_type, user_id, login, password):
-        raise UserDoesNotExistError("Couldn't find user - school: {}, "
-                                    "type: {}, id: {}, login: {} - in Lectio.".format(
-                                        school_id, user_type, user_id, login))
-    return _retreive_user_schedule(school_id, user_type, user_id, n_weeks, show_top, show_cancelled)
+def get_schedule(school_id, user_type, user_id, n_weeks, show_top, show_cancelled, username, password):
+    try:
+        options = webdriver.FirefoxOptions()
+        options.add_argument("-headless")
+        driver = webdriver.Firefox(options=options)
+
+        _login(driver, school_id, username, password)
+
+        return _retreive_user_schedule(driver, school_id, user_type, user_id, n_weeks, show_top, show_cancelled)
+    finally:
+        driver.quit()
+
+
+def main():
+    file = open("example.html", "r", encoding="utf-8") # a schedule page from Lectio - get your own
+    page_source = file.read()
+    file.close()
+    
+    # info = _parse_page_to_lessons(content, False, False)
+    # from pprint import pprint
+    # for i in info:
+    #     pprint(i)
+    #     print()
+    #     print()
+    
+    schedule = _parse_page_to_lessons(page_source, False, False)
+    
+    r = _filter_for_duplicates(schedule) + [_last_updated_event()]
+
+    # for i in r:
+    #     print(i)
+    #     print()
+    #     print()
+
+    return r
+
+
+if __name__ == '__main__':
+    main()

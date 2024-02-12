@@ -14,15 +14,27 @@
 
 import backoff
 import datetime
-from httplib2 import Http
 import dateutil.parser
-import googleapiclient.discovery
+import os.path
+import pkg_resources
 import pytz
+
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+
 from . import lesson
+
+# If modifying these scopes, delete the file token.json.
+SCOPES = ["https://www.googleapis.com/auth/calendar"]
+
 
 SERVICE_NAME = "calendar"
 SERVICE_VERSION = "v3"
+
+service_object = None  # only use in _get_calendar_service()
 
 DEFAULT_TIME_ZONE = pytz.timezone("Europe/Copenhagen")
 LESSON_STATUS = {"7": "normal", "2": "changed", "11": "cancelled"}
@@ -32,13 +44,33 @@ class CalendarNotFoundError(object):
     """ To get the id of a calendar, the calendar must exist. """
 
 
-def _get_calendar_service(google_credentials):
-    return googleapiclient.discovery.build(SERVICE_NAME, SERVICE_VERSION,
-                                           http=google_credentials.authorize(Http()))
+def _new_calendar_service():
+    creds = None
+    if os.path.exists("token.json"):
+        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(_get_client_secret_path(), SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open("token.json", "w") as token:
+            token.write(creds.to_json())
+
+    return build(SERVICE_NAME, SERVICE_VERSION, credentials=creds)
+
+def _get_client_secret_path():
+    return pkg_resources.resource_filename(__name__, "credentials.json")
+
+def _get_calendar_service():
+    global service_object
+    if service_object is None:
+        service_object = _new_calendar_service()
+    return service_object
 
 
-def has_calendar(google_credentials, calendar_name):
-    service = _get_calendar_service(google_credentials)
+def has_calendar(calendar_name):
+    service = _get_calendar_service()
     page_token = None
     while True:
         calendar_list = service \
@@ -53,18 +85,17 @@ def has_calendar(google_credentials, calendar_name):
             return False
 
 
-def create_calendar(google_credentials, calendar_name):
+def create_calendar(calendar_name):
     calendar = {
         "summary": calendar_name,
         "timeZone": DEFAULT_TIME_ZONE.zone
     }
 
-    service = _get_calendar_service(google_credentials)
+    service = _get_calendar_service()
     service.calendars().insert(body=calendar).execute()
 
 
-def _get_calendar_id_for_name(google_credentials, calendar_name):
-    service = _get_calendar_service(google_credentials)
+def _get_calendar_id_for_name(service, calendar_name):
     page_token = None
     while True:
         calendar_list = service \
@@ -139,14 +170,8 @@ def _parse_event_to_lesson(event):
         end = _get_datetime_from_field(event["end"]["dateTime"])
     else:
         end = _get_date_from_field(event["end"]["date"])
-    if "location" in event:
-        location = event["location"]
-    else:
-        location = None
-    if "description" in event:
-        description = event["description"]
-    else:
-        description = None
+    location = event.get("location", None)
+    description = event.get("description", None)
     if "source" in event and "url" in event["source"]:
         link = event["source"]["url"]
     else:
@@ -161,9 +186,9 @@ def _parse_events_to_schedule(events):
     return schedule
 
 
-def get_schedule(google_credentials, calendar_name, n_weeks):
-    service = _get_calendar_service(google_credentials)
-    calendar_id = _get_calendar_id_for_name(google_credentials, calendar_name)
+def get_schedule(calendar_name, n_weeks):
+    service = _get_calendar_service()
+    calendar_id = _get_calendar_id_for_name(service, calendar_name)
     start = _get_first_time_of_week()
     end = _get_last_time_in_n_weeks(n_weeks)
     events = _get_events_in_date_range(service, calendar_id, start, end)
@@ -203,16 +228,24 @@ def _update_lesson(service, calendar_id, lesson):
         .execute()
 
 
+def _print_action(action, lesson):
+    print(action.upper() + ":")
+    print(lesson)
+    print()
+    print()
+
 def _delete_removed_lessons(service, calendar_id, old_schedule, new_schedule):
     for old_lesson in old_schedule:
         if not any(new_lesson.id == old_lesson.id for new_lesson in new_schedule):
             _delete_lesson(service, calendar_id, old_lesson.id)
+            _print_action("removed", old_lesson)
 
 
 def _add_new_lessons(service, calendar_id, old_schedule, new_schedule):
     for new_lesson in new_schedule:
         if not any(old_lesson.id == new_lesson.id for old_lesson in old_schedule):
             _add_lesson(service, calendar_id, new_lesson)
+            _print_action("added", new_lesson)
 
 
 def _update_current_lessons(service, calendar_id, old_schedule, new_schedule):
@@ -221,12 +254,12 @@ def _update_current_lessons(service, calendar_id, old_schedule, new_schedule):
             if new_lesson.id == old_lesson.id:
                 if new_lesson != old_lesson:
                     _update_lesson(service, calendar_id, new_lesson)
+                    _print_action("updated", new_lesson)
 
 
-def update_calendar_with_schedule(
-        google_credentials, calendar_name, old_schedule, new_schedule):
-    service = _get_calendar_service(google_credentials)
-    calendar_id = _get_calendar_id_for_name(google_credentials, calendar_name)
+def update_calendar_with_schedule(calendar_name, old_schedule, new_schedule):
+    service = _get_calendar_service()
+    calendar_id = _get_calendar_id_for_name(service, calendar_name)
     _update_current_lessons(service, calendar_id, old_schedule, new_schedule)
     _add_new_lessons(service, calendar_id, old_schedule, new_schedule)
     _delete_removed_lessons(service, calendar_id, old_schedule, new_schedule)

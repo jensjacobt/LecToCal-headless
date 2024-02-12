@@ -1,1 +1,1 @@
-__all__ = ["gauth", "gcalendar", "lectio", "lesson", "run"]
+__all__ = ["gcalendar", "lectio", "lesson", "run"]

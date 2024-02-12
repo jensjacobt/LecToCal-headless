@@ -1,97 +1,82 @@
-# Lectocal
+# LecToCal-headless
 
-[![CircleCI](https://circleci.com/gh/Hanse00/LecToCal.svg?style=svg)](https://circleci.com/gh/Hanse00/LecToCal)
-[![Coverage Status](https://coveralls.io/repos/github/Hanse00/LecToCal/badge.svg?branch=master)](https://coveralls.io/github/Hanse00/LecToCal)
+LecToCal-headless (nedefor blot LecToCal) er et Python 3 modul til synkronisering af dele af Lectio-kalenderen til Google Kalender.
 
-Lectocal is a python module for syncronizing Lectio schedules into Google Calendar.
+Ved at bruge Google Kalender, kan du få: notifikationer, deling, adgang fra de fleste devices, integration med andre tjenester så som [If This Then That](https://ifttt.com).
 
-By leveraging the Google Calendar backend, it can provide: Notifications, Sharing, Access across most devices, integration with other services such as [If This Then That](https://ifttt.com).
+LecToCal-headless er en videreudvikling af [LecToCal](https://github.com/Hanse00/LecToCal). Den største ændring er, at LecToCal-headless bruger Chrome eller Firefox til at hente kalenderbegivenheder fra Lectio, så de kan synkroniseres til Google Kalender. Det gøres uden at browservinduet vises, hvilket kaldes headless på engelsk.
 
-## Development
-
-So you want to work with the code? Awesome!
-
-This project uses [Pipenv](https://pipenv.readthedocs.io/en/latest/), after cloning the repo, do the following:
-
-1. Make sure you have python 3 installed.
-2. Create a pipenv in your working directory with `pipenv --three`.
-3. Install both the default and development packages from the Pipfile with `pipenv install --dev`.
-
-You should now be ready to work.
-
-For more information on pipenv check out [the documentation](https://pipenv.readthedocs.io/en/latest/). If you run into any issues working with the project, feel free to [open an issue on GitHub](https://github.com/Hanse00/LecToCal/issues).
+**Bemærk**: Dette program har ingen tilknytning til Lectio eller MaCom (der udvikler og driver Lectio).
 
 ## Installation
 
-Installation is easiest using pip, as Lectocal is availble on Pypi as a package (http://pypi.org/project/lectocal/). Simply run `pip install lectocal`.
-
-For more details on using pip, check out [the official documentation](https://packaging.python.org/tutorials/installing-packages/).
-
-Alternatively the source code can be downloaded straight from GitHub, using the "Clone or download" button in the top right.
+1. Download en zip-fil med kildekoden fra Releases til højre. 
+2. Udpak alle filerne til en mappe. 
+3. Åbn mappen i en terminal, og kør `python setup.py install`
 
 ## Usage
 
-### Dependencies
+### Afhængigheder
 
-If the package is installed via pip, dependencies will be handled automatically.
+Du skal have installeret Mozilla Firefox eller Google Chrome for at bruge dette program. (Hvis du vil bruge programmet på Raspberry Pi, så se afsnittet om dette nedenfor.)
 
-Otherwise, these dependencies will need to be downloaded manually - We recommend using [pipenv](https://docs.pipenv.org) and installing the packages as listed in the [Pipfile](Pipfile).
+### Kørsel
 
-### Invocation
-
-After installation, the module can be invoced with:
+Efter installation, som forklaret ovenfor, kan modulet køres i terminalen som:
 
 ```
-python -m lectocal.gauth
-python -m lectocal.run
+lectocal
 ```
 
-If installed via setuptools (pip does this) two executables will also be generated:
-```
-lectocal.gauth
-lectocal.run
-```
+### Parametre
 
-These can be executed by the system directly.
+For at se alle de påkrævede og valgfrie parametre, kan du køre modulet med `-h` eller `--help` som parameter.
 
-### Parameters
+### Anvendelse
 
-For all the parameters supported, run the intended module with the -h or --help parameters.
+1. Synkronisér kalenderen ved at køre `lectocal`.
 
-### Example use
+    Ved første kørsel ledes du igennem et forløb, hvor LecToCal gives tilladelse til at foretage ændringer i Google Kalender (så der kan oprettes en kalender, som standard "Lectio", og tilføjes begivenheder fra Lectio til denne kalender). Dette gemmer en fil, så der ikke skal gives tilladelse igen næste gang LecToCal køres.
 
-1. Generating Calendar OAuth credentials.
+1. Gentag.
 
-    The first step is to generate OAuth credentials for the Google account, to which the schedule must be written.
+    For at holde kalenderen opdateret, skal punkt 1 gentages jævnligt.
 
-    This is done by running `lectocal.gauth`, and following the steps in the browser. 
+**Bemærk**
 
-    These steps authorize lectocal to get a credential which gives full calendar access, so new events can be written, and old ones deleted.
+Den genererede kalender i Google Kalender bør ikke slettes eller omdøbes, da det kan føre til problemer så som ekstra kopier af kalenderen (da LecToCal opretter en kalender, som standard "Lectio", hvis den ikke findes).
 
-1. Syncronizing the schedule.
+### Raspberry Pi
 
-    After the OAuth credential exists, Lectocal can now write into the calendar using the API.
+På vej!
 
-    Running `lectocal.run` at this point, scrapes the schedule for the chosen individual, and writes it to the calendar.
+## Udvikling
 
-1. Repeat.
+Så du vil gerne arbejde med koden? Sejt!
 
-    To keep a calendar up to date, step 2 will need to be repeated at a given interval.
-    This can for example be done using cron, or a similar task scheduling system.
+Du kan med fordel køre med et virtuelt miljø for ikke at forstyrre dine andre pakkeinstallationer:
 
-    As long as the OAuth credentials are not deleted from the system, or revoked from the Google account, step 1 should not need to be re-run.
+1. `python -m venv .venv`
+2. `source ./.venv/bin/activate` (eller tilsvarende - se [how venvs work](https://docs.python.org/3/library/venv.html#how-venvs-work))
 
-**Note**
+Derefter installeres de påkrævede pakker:
 
-The generated Google Calendar should not be deleted or renamed, this may cause the system to break, or act in unexpected ways, such as creating a duplicate calendar.
+3. `python setup.py egg_info`
+4. `pip install -r lectocal_headless.egg-info/requires.txt`
+5. `rm -rf lectocal_headless.egg-info/`
+6. `pip install importlib-metadata`
 
-## Bugs, Feedback, Thoughts, etc.
+Du skulle nu være klar til at gå i gang.
 
-For bugs, issues, or questions about the software, use the [issue tracker built into GitHub](https://github.com/Hanse00/LecToCal/issues).
+Hvis du støder på problemer under arbejde på projektet, så er du velkommen til at [oprette et "issue" på GitHub](https://github.com/jensjacobt/LecToCal/issues).
 
-For general discussion, feedback, etc. there's a mailgroup at [lectocal@googlegroups.com](https://groups.google.com/forum/#!forum/lectocal).
+(Det overvejes at skifte til brug af poetry for at forenkle håndteringen af pakker mv.)
+
+## Bugs, feedback, tanker, etc.
+
+Brug endelig [GitHub's issue tracker](https://github.com/jensjacobt/LecToCal/issues). Send evt. en pull request.
+
 
 ## License
 
-Lectocal is licensed under the Apache 2.0 license, see [LICENSE](LICENSE) or
-apache.org for details.
+LecToCal har en Apache 2.0 licens, se [LICENSE](LICENSE) eller apache.org for detajler.

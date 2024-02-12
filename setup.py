@@ -8,12 +8,12 @@ def readme():
 
 
 setup(
-    name="lectocal",
-    version="1.2.1",
-    author="Philip 'Hanse00' Mallegol-Hansen",
+    name="lectocal-headless",
+    version="1.0.0",
+    author="Philip 'Hanse00' Mallegol-Hansen & Jens Jacob Thomsen (contrib)",
     author_email="philip@mallegolhansen.com",
-    url="https://github.com/Hanse00/LecToCal",
-    description="Syncronize Lectio schedules to Google Calendar.",
+    url="https://github.com/jensjacobt/LecToCal",
+    description="Syncronize Lectio schedules to Google Calendar. Needs Firefox browser to be installed.",
     long_description=readme(),
     long_description_content_type='text/markdown',
     license="Apache 2.0",
@@ -46,23 +46,23 @@ setup(
     keywords="lectio google calendar sync utility",
     packages=find_packages(),
     install_requires=[
+        "backoff",
         "google-api-python-client",
-        "requests",
+        "google-auth-httplib2",
+        "google-auth-oauthlib",
         "lxml",
-        "pytz",
         "python-dateutil",
-        "oauth2client",
-        "backoff"
+        "pytz",
+        "selenium",
     ],
     package_data={
         "lectocal": [
-            "client_secret.json",
+            "credentials.json",
         ]
     },
     entry_points={
         "console_scripts": [
-            "lectocal.run=lectocal.run:main",
-            "lectocal.gauth=lectocal.gauth:main"
+            "lectocal=lectocal.run:main"
         ]
     }
 )

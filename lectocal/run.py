@@ -15,7 +15,6 @@
 import argparse
 import getpass
 import sys
-from . import gauth
 from . import lectio
 from . import lesson
 from . import gcalendar
@@ -34,10 +33,6 @@ def _get_arguments():
     parser.add_argument("user_id",
                         type=int,
                         help="User's ID in Lectio.")
-    parser.add_argument("--credentials",
-                        default="storage.json",
-                        help="Path to the file storing the Google "
-                        "OAuth credentials. (default: storage.json)")
     parser.add_argument("--calendar",
                         default="Lectio",
                         help="Name to use for the calendar inside "
@@ -64,13 +59,29 @@ def _get_arguments():
 
     return parser.parse_args()
 
+def sync(school_id, user_type, user_id, calendar_name,
+         username, password, weeks, show_top, show_cancelled):
+    """
+    Sync calendar from Lectio to Google
+    """
+    if not gcalendar.has_calendar(calendar_name):
+        gcalendar.create_calendar(calendar_name)
+
+    lectio_schedule = lectio.get_schedule(
+        school_id, user_type, user_id, weeks, 
+        show_top, show_cancelled, username, password)
+    
+    google_schedule = gcalendar.get_schedule(calendar_name, weeks)
+
+    gcalendar.update_calendar_with_schedule(
+        calendar_name, google_schedule, lectio_schedule)
 
 def main():
-    arguments = _get_arguments()
+    a = _get_arguments()
 
     try:
-        if(arguments.login):
-            login = arguments.login
+        if(a.login):
+            login = a.login
         else:
             login = input("Lectio username: ")
         password = getpass.getpass(prompt="Lectio password: ")
@@ -78,28 +89,21 @@ def main():
         print("\nLogin cancelled")
         sys.exit()
 
-    google_credentials = gauth.get_credentials(arguments.credentials)
-    if not gcalendar.has_calendar(google_credentials, arguments.calendar):
-        gcalendar.create_calendar(google_credentials, arguments.calendar)
-
-    lectio_schedule = lectio.get_schedule(arguments.school_id,
-                                          arguments.user_type,
-                                          arguments.user_id,
-                                          arguments.weeks,
-                                          arguments.show_top,
-                                          arguments.show_cancelled,
-                                          login,
-                                          password)
-
-    google_schedule = gcalendar.get_schedule(google_credentials,
-                                             arguments.calendar,
-                                             arguments.weeks)
-
-    if not lesson.schedules_are_identical(lectio_schedule, google_schedule):
-        gcalendar.update_calendar_with_schedule(google_credentials,
-                                                arguments.calendar,
-                                                google_schedule,
-                                                lectio_schedule)
+    try:
+        sync(a.school_id, a.user_type, a.user_id, a.calendar, 
+             login, password, a.weeks, a.show_top, a.show_cancelled)
+    except Exception as e:
+        if type(e) == lectio.UserDoesNotExistError:
+            message = ("Unable to log in.\n"
+                       "Did you type the username and password, correctly?\n"
+                       "(And did you specify school_id, user_type, and user_id, correctly?)\n"
+                       "(And can you access Lectio from your web browser?)")
+            print(message, file=sys.stderr)
+            sys.exit(1)
+        else:
+            message = "An error occured. If it continues, then submit an issue with the following dump:"
+            print(message, file=sys.stderr)
+            raise e
 
 
 if __name__ == "__main__":

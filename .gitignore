@@ -1,6 +1,15 @@
+# Don't version my personal test files
+TODO
+example.html
+test.py
+
+# Don't sync environment files
+env/
+.venv/
+
 # Don't version user oauth credentials
 # These are generated per user, and will be generated on your system
-cookie.txt
+token.json
 storage.json
 
 # Don't version cached or compiled python files
