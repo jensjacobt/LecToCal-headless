@@ -14,7 +14,7 @@ LecToCal-headless er en videreudvikling af [LecToCal](https://github.com/Hanse00
 2. Udpak alle filerne til en mappe. 
 3. Åbn mappen i en terminal, og kør `python setup.py install`
 
-## Usage
+## Brug
 
 ### Afhængigheder
 
@@ -32,7 +32,7 @@ lectocal
 
 For at se alle de påkrævede og valgfrie parametre, kan du køre modulet med `-h` eller `--help` som parameter.
 
-### Anvendelse
+### Eksempel på anvendelse
 
 1. Synkronisér kalenderen ved at køre `lectocal`.
 
@@ -77,6 +77,6 @@ Hvis du støder på problemer under arbejde på projektet, så er du velkommen t
 Brug endelig [GitHub's issue tracker](https://github.com/jensjacobt/LecToCal/issues). Send evt. en pull request.
 
 
-## License
+## Licens
 
 LecToCal har en Apache 2.0 licens, se [LICENSE](LICENSE) eller apache.org for detajler.

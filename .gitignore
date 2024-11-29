@@ -1,3 +1,5 @@
+.DS_Store
+
 # Don't version my personal test files
 TODO
 example.html
@@ -6,6 +8,7 @@ test.py
 # Don't sync environment files
 env/
 .venv/
+.env
 
 # Don't version user oauth credentials
 # These are generated per user, and will be generated on your system

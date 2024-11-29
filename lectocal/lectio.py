@@ -289,9 +289,12 @@ def _parse_element_to_lesson(element, show_top, show_cancelled):
         return None
     elif not show_cancelled and status == "cancelled":
         return None
-    elif not location:
+    # elif not location:
+    #     return None ################################################################################################# TODO: Do this better
+    elif (end_time - start_time).days > 5:
         return None ################################################################################################# TODO: Do this better
     else:
+        location = None ################################################################################################# TODO: Undo this
         return lesson.Lesson(id, summary, status, start_time, end_time, location, description, link)
 
 
@@ -358,6 +361,28 @@ def _retreive_user_schedule(driver, school_id, user_type, user_id, n_weeks, show
     return filtered_schedule
 
 
+def _get_driver():
+    driver = None
+    try:
+        options = webdriver.ChromeOptions()
+        options.add_argument("--headless=new")
+        service = webdriver.ChromeService(executable_path = '/usr/lib/chromium-browser/chromedriver')
+        driver = webdriver.Chrome(options = options, service = service)
+    except:
+        try:
+            options = webdriver.ChromeOptions()
+            options.add_argument("--headless=new")
+            driver = webdriver.Chrome(options=options)
+        except:
+            try:
+                options = webdriver.FirefoxOptions()
+                options.add_argument("-headless")
+                driver = webdriver.Firefox(options=options)
+            except:
+                    raise Exception("Unable to open browser (tried Chrome and Firefox)")
+    return driver
+
+
 def _login(driver, school_id, username, password):
     driver.get(LOGIN_URL_TEMPLATE.format(school_id))
 
@@ -367,18 +392,18 @@ def _login(driver, school_id, username, password):
     passwordInput.send_keys(password + Keys.RETURN)
     
 
-
 def get_schedule(school_id, user_type, user_id, n_weeks, show_top, show_cancelled, username, password):
     try:
-        options = webdriver.FirefoxOptions()
-        options.add_argument("-headless")
-        driver = webdriver.Firefox(options=options)
+        driver = _get_driver()
+
+        print("Using", driver.capabilities.get("browserName", "No name browser"))
 
         _login(driver, school_id, username, password)
 
         return _retreive_user_schedule(driver, school_id, user_type, user_id, n_weeks, show_top, show_cancelled)
     finally:
-        driver.quit()
+        if not driver is None:
+            driver.quit()
 
 
 def main():

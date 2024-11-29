@@ -14,11 +14,12 @@
 
 import argparse
 import getpass
+import keyring
 import sys
 from . import lectio
-from . import lesson
 from . import gcalendar
 
+KEYRING_SERVICE_NAME = "LecToCal"
 
 def _get_arguments():
     parser = argparse.ArgumentParser(description="Scrapes a Lectio schedule "
@@ -37,15 +38,25 @@ def _get_arguments():
                         default="Lectio",
                         help="Name to use for the calendar inside "
                         "Google Calendar. (default: Lectio)")
-    parser.add_argument("--login",
-                        default="",
-                        type=str,
-                        help="The username from a Lectio login.")
     parser.add_argument("--weeks",
                         type=int,
                         default=4,
                         help="Number of weeks to parse the schedule for. "
                         "(default: 4)")
+    parser.add_argument("--login",
+                        default="",
+                        type=str,
+                        help="The username from a Lectio login.")
+    parser.add_argument('--store-pass',
+                        default=False,
+                        dest='store_pass',
+                        action='store_true',
+                        help="If set, attempt to store user password in system keyring (e.g. Keychain on macOS).")
+    parser.add_argument('--reset',
+                        default=False,
+                        dest='reset',
+                        action='store_true',
+                        help="If set, reset user password in system keyring (e.g. Keychain on macOS).")
     parser.add_argument('--showtop',
                         default=False,
                         dest='show_top',
@@ -76,18 +87,32 @@ def sync(school_id, user_type, user_id, calendar_name,
     gcalendar.update_calendar_with_schedule(
         calendar_name, google_schedule, lectio_schedule)
 
+def getUserPass(login, store_pass, reset):
+    if login == "":
+        try:
+            login = input("Lectio username: ")
+        except:
+            print("\nLogin cancelled")
+            sys.exit()
+
+    password = None
+    if not reset:
+        password = keyring.get_password(KEYRING_SERVICE_NAME, login)
+    if password is None:
+        try:
+            password = getpass.getpass(prompt="Lectio password: ")
+            if store_pass:
+                keyring.set_password(KEYRING_SERVICE_NAME, login, password)
+        except:
+            print("\nLogin cancelled")
+            sys.exit()
+    
+    return login, password
+
 def main():
     a = _get_arguments()
 
-    try:
-        if(a.login):
-            login = a.login
-        else:
-            login = input("Lectio username: ")
-        password = getpass.getpass(prompt="Lectio password: ")
-    except:
-        print("\nLogin cancelled")
-        sys.exit()
+    login, password = getUserPass(a.login, a.store_pass, a.reset)
 
     try:
         sync(a.school_id, a.user_type, a.user_id, a.calendar, 
@@ -102,9 +127,10 @@ def main():
             sys.exit(1)
         else:
             message = "An error occured. If it continues, then submit an issue with the following dump:"
-            print(message, file=sys.stderr)
+            print(message + "\n", file=sys.stderr)
             raise e
 
 
 if __name__ == "__main__":
     main()
+    # TODO: Brug sidetitel til at afgøre om der var succes ved loginforsøg
