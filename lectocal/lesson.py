@@ -39,27 +39,22 @@ class Lesson(object):
             "summary": None,
             "id": None,
             "colorId": None,
-            "start": {
-                "timeZone": "Europe/Copenhagen"
-            },
-            "end": {
-                "timeZone": "Europe/Copenhagen"
-            },
+            "start": {"timeZone": "Europe/Copenhagen"},
+            "end": {"timeZone": "Europe/Copenhagen"},
             "location": None,
             "description": None,
-            "source": {}
-
+            "source": {},
         }
 
         formatted = copy.deepcopy(TEMPLATE)
         formatted["summary"] = self.summary
         formatted["id"] = self.id
         formatted["colorId"] = STATUS_COLORS[self.status]
-        if type(self.start) == datetime.datetime:
+        if isinstance(self.start, datetime.datetime):
             formatted["start"]["dateTime"] = self.start.isoformat()
         else:
             formatted["start"]["date"] = self.start.isoformat()
-        if type(self.end) == datetime.datetime:
+        if isinstance(self.end, datetime.datetime):
             formatted["end"]["dateTime"] = self.end.isoformat()
         else:
             formatted["end"]["date"] = self.end.isoformat()
@@ -70,17 +65,22 @@ class Lesson(object):
         return formatted
 
     def _gen_id(self):
-        lesson_string = str(self.summary) + str(self.status) + \
-            str(self.start) + str(self.end) + \
-            str(self.location) + str(self.description) + \
-            str(self.link)
+        lesson_string = (
+            str(self.summary)
+            + str(self.status)
+            + str(self.start)
+            + str(self.end)
+            + str(self.location)
+            + str(self.description)
+            + str(self.link)
+        )
         hasher = hashlib.sha256()
         hasher.update(bytes(lesson_string, "utf8"))
         hash_value = hasher.hexdigest()
         return hash_value
 
     def __eq__(self, other):
-        if type(self) == type(other):
+        if isinstance(other, Lesson):
             return self.__dict__ == other.__dict__
         return False
 
@@ -88,12 +88,21 @@ class Lesson(object):
         return not self.__eq__(other)
 
     def __repr__(self):
-        return str({"id": self.id, "summary": self.summary,
-                    "status": self.status, "start": self.start,
-                    "end": self.end, "location": self.location,
-                    "description": self.description, "link": self.link})
+        return str(
+            {
+                "id": self.id,
+                "summary": self.summary,
+                "status": self.status,
+                "start": self.start,
+                "end": self.end,
+                "location": self.location,
+                "description": self.description,
+                "link": self.link,
+            }
+        )
 
 
 def schedules_are_identical(schedule1, schedule2):
-    return all(lesson in schedule1 for lesson in schedule2) and \
-        all(lesson in schedule2 for lesson in schedule1)
+    return all(lesson in schedule1 for lesson in schedule2) and all(
+        lesson in schedule2 for lesson in schedule1
+    )

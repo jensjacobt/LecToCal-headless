@@ -19,41 +19,47 @@ import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from lxml import html
-from . import lesson
+from .lesson import Lesson
 
 
 USER_TYPE = {"student": "elev", "teacher": "laerer"}
 LESSON_STATUS = {None: "normal", "Ændret!": "changed", "Aflyst!": "cancelled"}
 URL_TEMPLATE = "https://www.lectio.dk/lectio/{0}/SkemaNy.aspx?{1}id={2}&week={3}"
 LOGIN_URL_TEMPLATE = "https://www.lectio.dk/lectio/{0}/login.aspx"
-SPACER = " " + u"\u2022" + " "
+SPACER = " " + "\u2022" + " "
 cookies = None
 
 
 class UserDoesNotExistError(Exception):
-    """ Attempted to get a non-existing user from Lectio. """
+    """Attempted to get a non-existing user from Lectio."""
+
 
 class CookiesNotSet(Exception):
-    """ Cookies not set. Login before you retrieve calendar pages. """
+    """Cookies not set. Login before you retrieve calendar pages."""
+
 
 class IdNotFoundInLinkError(Exception):
-    """ All lessons with a link should include an ID. """
+    """All lessons with a link should include an ID."""
+
 
 class InvalidStatusError(Exception):
-    """ Lesson status can only take the values Ændret!, Aflyst! and None. """
+    """Lesson status can only take the values Ændret!, Aflyst! and None."""
+
 
 class InvalidTimeLineError(Exception):
-    """ The line doesn't include any valid formatting of time. """
+    """The line doesn't include any valid formatting of time."""
+
 
 class InvalidLocationError(Exception):
-    """ The line doesn't include any location. """
+    """The line doesn't include any location."""
+
 
 class InvalidRessourcesError(Exception):
-    """ The line doesn't include any ressources. """
+    """The line doesn't include any ressources."""
+
 
 class InvalidGroupsError(Exception):
-    """ The line doesn't include any groups. """
-
+    """The line doesn't include any groups."""
 
 
 def _get_user_page(driver, school_id, user_type, user_id, week):
@@ -72,8 +78,7 @@ def _get_lectio_weekformat_with_offset(offset):
 
 
 def _get_id_from_link(link):
-    match = re.search(
-        r"(?:absid|ProeveholdId|outboundCensorID|aftaleid)=(\d+)", link)
+    match = re.search(r"(?:absid|ProeveholdId|outboundCensorID|aftaleid)=(\d+)", link)
     if match is None:
         return None
     return match.group(1)
@@ -103,8 +108,7 @@ def _is_location_line(line):
 def _get_location_from_line(line):
     match = re.search(r"Lokaler?: (.*)", line)
     if match is None:
-        raise InvalidLocationError("No location found in line: '{}'"
-                                   .format(line))
+        raise InvalidLocationError("No location found in line: '{}'".format(line))
     return match.group(1)
 
 
@@ -115,8 +119,7 @@ def _is_groups_line(line):
 def _get_groups_from_line(line):
     match = re.search(r"Hold: (.*)", line)
     if match is None:
-        raise InvalidGroupsError("No groups found in line: '{}'"
-                                 .format(line))
+        raise InvalidGroupsError("No groups found in line: '{}'".format(line))
     return match.group(1)
 
 
@@ -127,8 +130,7 @@ def _is_ressources_line(line):
 def _get_ressources_from_line(line):
     match = re.search(r"Ressourcer: (.*)", line)
     if match is None:
-        raise InvalidRessourcesError("No ressources found in line: '{}'"
-                                     .format(line))
+        raise InvalidRessourcesError("No ressources found in line: '{}'".format(line))
     return match.group(1)
 
 
@@ -139,8 +141,11 @@ def _is_time_line(line):
     # 8/4-2016 17:30 til 9/4-2016 01:00
     # 7/12-2015 10:00 til 11:30
     # 17/12-2015 10:00 til 11:30
-    match = re.search(r"\d{1,2}/\d{1,2}-\d{4} (?:Hele dagen|\d{2}:\d{2} til "
-                      r"(?:\d{1,2}/\d{1,2}-\d{4} )?\d{2}:\d{2})", line)
+    match = re.search(
+        r"\d{1,2}/\d{1,2}-\d{4} (?:Hele dagen|\d{2}:\d{2} til "
+        r"(?:\d{1,2}/\d{1,2}-\d{4} )?\d{2}:\d{2})",
+        line,
+    )
     return match is not None
 
 
@@ -164,8 +169,11 @@ def _get_time_from_line(line):
     # 2 - start time
     # 3 - end date
     # 4 - end time
-    match = re.search(r"(\d{1,2}/\d{1,2}-\d{4})(?: (\d{2}:\d{2}) til "
-                      r"(\d{1,2}/\d{1,2}-\d{4})? ?(\d{2}:\d{2}))?", line)
+    match = re.search(
+        r"(\d{1,2}/\d{1,2}-\d{4})(?: (\d{2}:\d{2}) til "
+        r"(\d{1,2}/\d{1,2}-\d{4})? ?(\d{2}:\d{2}))?",
+        line,
+    )
     if match is None:
         raise InvalidTimeLineError("No time found in line: '{}'".format(line))
 
@@ -234,7 +242,7 @@ def _extract_lesson_info(tooltip):
     # Get info from all lines
     for line in lines[offset:]:
         if header_section:
-            if line == '' and start_time is not None:
+            if line == "" and start_time is not None:
                 header_section = False
                 continue
             elif _is_time_line(line):
@@ -269,7 +277,7 @@ def _extract_lesson_info(tooltip):
     else:
         summary = _prepend_section_to_summary(event_title, summary)
 
-    description = "" ##############################################################################
+    description = ""  #############################################################################
     # TODO: Handle this better
     if description == "":  # needed for comparison
         description = None
@@ -284,31 +292,34 @@ def _parse_element_to_lesson(element, show_top, show_cancelled):
         id = _get_id_from_link(link)
         link = _get_complete_link(link)
     tooltip = element.get("data-tooltip")
-    summary, status, start_time, end_time, location, description, is_top = \
+    summary, status, start_time, end_time, location, description, is_top = (
         _extract_lesson_info(tooltip)
+    )
 
     if not show_top and is_top:
         return None
     elif not show_cancelled and status == "cancelled":
         return None
     # elif not location:
-    #     return None #############################################################################
+    #     return None  ############################################################################
     # TODO: Do this better
     elif (end_time - start_time).days > 5:
-        return None ###############################################################################
+        return None  ##############################################################################
     # TODO: Do this better
     else:
-        location = None ###########################################################################
+        location = None  ##########################################################################
         # TODO: Undo this
-        return lesson.Lesson(id, summary, status, start_time, end_time, location, description, link)
+        return Lesson(
+            id, summary, status, start_time, end_time, location, description, link
+        )
 
 
 def _parse_page_to_lessons(page_source, show_top, show_cancelled):
     tree = html.fromstring(page_source)
     # Find all a elements with class s2skemabrik in page
-    lesson_elements = tree.xpath("//a[contains(concat("
-                                 "' ', normalize-space(@class), ' '),"
-                                 "' s2skemabrik ')]")
+    lesson_elements = tree.xpath(
+        "//a[contains(concat(' ', normalize-space(@class), ' '), 's2skemabrik')]"
+    )
     lessons = []
     for element in lesson_elements:
         lesson = _parse_element_to_lesson(element, show_top, show_cancelled)
@@ -317,7 +328,9 @@ def _parse_page_to_lessons(page_source, show_top, show_cancelled):
     return lessons
 
 
-def _retreive_week_schedule(driver, school_id, user_type, user_id, week, show_top, show_cancelled):
+def _retreive_week_schedule(
+    driver, school_id, user_type, user_id, week, show_top, show_cancelled
+):
     page_source = _get_user_page(driver, school_id, user_type, user_id, week=week)
     schedule = _parse_page_to_lessons(page_source, show_top, show_cancelled)
     return schedule
@@ -337,44 +350,52 @@ def _last_updated_event():
     status = None
 
     now = datetime.datetime.now()
-    monday = (now - datetime.timedelta(days = now.weekday())).date()
+    monday = (now - datetime.timedelta(days=now.weekday())).date()
     start_time = end_time = monday
 
     description = None
     location = None
     link = None
-    l = lesson.Lesson(id, summary, status, start_time, end_time, location, description, link)
-    return l
+    last_updated = Lesson(
+        id, summary, status, start_time, end_time, location, description, link
+    )
+    return last_updated
 
 
 def _not_on_a_schedule_page(driver):
     return len(driver.find_elements(By.CLASS_NAME, "tidsreg-wrapper")) == 0
 
 
-def _retreive_user_schedule(driver, school_id, user_type, user_id, n_weeks, show_top, show_cancelled):
+def _retreive_user_schedule(
+    driver, school_id, user_type, user_id, n_weeks, show_top, show_cancelled
+):
     schedule = []
     for week_offset in range(n_weeks + 1):
         week = _get_lectio_weekformat_with_offset(week_offset)
         week_schedule = _retreive_week_schedule(
-            driver, school_id, user_type, user_id, week, show_top, show_cancelled)
+            driver, school_id, user_type, user_id, week, show_top, show_cancelled
+        )
         if week_offset == 0 and _not_on_a_schedule_page(driver):
             raise UserDoesNotExistError(
-                f"Couldn't log in user - school: {school_id}, type: {user_type}, id: {user_id} - in Lectio.")
+                f"Couldn't log in user - school: {school_id}, type: {user_type}, id: {user_id} - in Lectio."
+            )
         schedule += week_schedule
     filtered_schedule = _filter_for_duplicates(schedule)
     filtered_schedule.append(_last_updated_event())
     return filtered_schedule
 
 
-def _get_driver(headless = True):
+def _get_driver(headless=True):
     driver = None
     try:
         options = webdriver.ChromeOptions()
-        options.binary_location = '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser'
-        options.add_argument(f'--user-data-dir={os.getcwd()}/data-dir')
+        options.binary_location = (
+            "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
+        )
+        options.add_argument(f"--user-data-dir={os.getcwd()}/data-dir")
         if headless:
             options.add_argument("--headless=new")
-        driver = webdriver.Chrome(options = options)
+        driver = webdriver.Chrome(options=options)
         print("Using Brave")
     except Exception:
         try:
@@ -391,13 +412,15 @@ def _get_driver(headless = True):
                 driver = webdriver.Firefox(options=options)
                 print("Using Firefox")
             except Exception:
-                    raise Exception("Unable to open browser (tried Brave, Chrome and Firefox)")
+                raise Exception(
+                    "Unable to open browser (tried Brave, Chrome and Firefox)"
+                )
     return driver
 
 
 def login(school_id):
     try:
-        driver = _get_driver(headless = False)
+        driver = _get_driver(headless=False)
         url = LOGIN_URL_TEMPLATE.format(school_id)
         driver.get(url)
 
@@ -414,30 +437,33 @@ def login(school_id):
             driver.quit()
 
 
-
 def get_schedule(school_id, user_type, user_id, n_weeks, show_top, show_cancelled):
     try:
         driver = _get_driver()
-        return _retreive_user_schedule(driver, school_id, user_type, user_id, n_weeks, show_top, show_cancelled)
+        return _retreive_user_schedule(
+            driver, school_id, user_type, user_id, n_weeks, show_top, show_cancelled
+        )
     finally:
         if driver is not None:
             driver.quit()
 
 
 def main():
-    file = open("example.html", "r", encoding="utf-8") # a schedule page from Lectio - get your own
+    file = open(
+        "example.html", "r", encoding="utf-8"
+    )  # a schedule page from Lectio - get your own
     page_source = file.read()
     file.close()
-    
+
     # info = _parse_page_to_lessons(content, False, False)
     # from pprint import pprint
     # for i in info:
     #     pprint(i)
     #     print()
     #     print()
-    
+
     schedule = _parse_page_to_lessons(page_source, False, False)
-    
+
     r = _filter_for_duplicates(schedule) + [_last_updated_event()]
 
     # for i in r:
@@ -448,5 +474,5 @@ def main():
     return r
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

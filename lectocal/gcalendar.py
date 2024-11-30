@@ -41,7 +41,7 @@ LESSON_STATUS = {"7": "normal", "2": "changed", "11": "cancelled"}
 
 
 class CalendarNotFoundError(object):
-    """ To get the id of a calendar, the calendar must exist. """
+    """To get the id of a calendar, the calendar must exist."""
 
 
 def _new_calendar_service():
@@ -52,15 +52,19 @@ def _new_calendar_service():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(_get_client_secret_path(), SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(
+                _get_client_secret_path(), SCOPES
+            )
             creds = flow.run_local_server(port=0)
         with open("token.json", "w") as token:
             token.write(creds.to_json())
 
     return build(SERVICE_NAME, SERVICE_VERSION, credentials=creds)
 
+
 def _get_client_secret_path():
     return pkg_resources.resource_filename(__name__, "credentials.json")
+
 
 def _get_calendar_service():
     global service_object
@@ -73,23 +77,17 @@ def has_calendar(calendar_name):
     service = _get_calendar_service()
     page_token = None
     while True:
-        calendar_list = service \
-            .calendarList() \
-            .list(pageToken=page_token) \
-            .execute()
-        for calendar_entry in calendar_list['items']:
+        calendar_list = service.calendarList().list(pageToken=page_token).execute()
+        for calendar_entry in calendar_list["items"]:
             if calendar_entry["summary"] == calendar_name:
                 return True
-        page_token = calendar_list.get('nextPageToken')
+        page_token = calendar_list.get("nextPageToken")
         if not page_token:
             return False
 
 
 def create_calendar(calendar_name):
-    calendar = {
-        "summary": calendar_name,
-        "timeZone": DEFAULT_TIME_ZONE.zone
-    }
+    calendar = {"summary": calendar_name, "timeZone": DEFAULT_TIME_ZONE.zone}
 
     service = _get_calendar_service()
     service.calendars().insert(body=calendar).execute()
@@ -98,17 +96,13 @@ def create_calendar(calendar_name):
 def _get_calendar_id_for_name(service, calendar_name):
     page_token = None
     while True:
-        calendar_list = service \
-            .calendarList() \
-            .list(pageToken=page_token) \
-            .execute()
-        for calendar_entry in calendar_list['items']:
+        calendar_list = service.calendarList().list(pageToken=page_token).execute()
+        for calendar_entry in calendar_list["items"]:
             if calendar_entry["summary"] == calendar_name:
                 return calendar_entry["id"]
-        page_token = calendar_list.get('nextPageToken')
+        page_token = calendar_list.get("nextPageToken")
         if not page_token:
-            raise CalendarNotFoundError("Calendar: {} not found"
-                                        .format(calendar_name))
+            raise CalendarNotFoundError("Calendar: {} not found".format(calendar_name))
 
 
 def _get_first_time_of_week():
@@ -129,15 +123,18 @@ def _get_events_in_date_range(service, calendar_id, start, end):
     all_events = []
     page_token = None
     while True:
-        events = service \
-            .events() \
-            .list(calendarId=calendar_id,
-                  pageToken=page_token,
-                  timeMax=DEFAULT_TIME_ZONE.localize(end).isoformat(),
-                  timeMin=DEFAULT_TIME_ZONE.localize(start).isoformat()) \
+        events = (
+            service.events()
+            .list(
+                calendarId=calendar_id,
+                pageToken=page_token,
+                timeMax=DEFAULT_TIME_ZONE.localize(end).isoformat(),
+                timeMin=DEFAULT_TIME_ZONE.localize(start).isoformat(),
+            )
             .execute()
+        )
         all_events += events["items"]
-        page_token = events.get('nextPageToken')
+        page_token = events.get("nextPageToken")
         if not page_token:
             break
     return all_events
@@ -195,21 +192,17 @@ def get_schedule(calendar_name, n_weeks):
     return _parse_events_to_schedule(events)
 
 
-@backoff.on_exception(backoff.expo, HttpError,  max_tries=4)
+@backoff.on_exception(backoff.expo, HttpError, max_tries=4)
 def _delete_lesson(service, calendar_id, lesson_id):
-    service \
-        .events() \
-        .delete(calendarId=calendar_id, eventId=lesson_id) \
-        .execute()
+    service.events().delete(calendarId=calendar_id, eventId=lesson_id).execute()
 
 
-@backoff.on_exception(backoff.expo, HttpError,  max_tries=4)
+@backoff.on_exception(backoff.expo, HttpError, max_tries=4)
 def _add_lesson(service, calendar_id, lesson):
     try:
-        service \
-            .events() \
-            .insert(calendarId=calendar_id, body=lesson.to_gcalendar_format()) \
-            .execute()
+        service.events().insert(
+            calendarId=calendar_id, body=lesson.to_gcalendar_format()
+        ).execute()
     except HttpError as err:
         # Status code 409 is conflict. In this case, it means the id already exists.
         if err.resp.status == 409:
@@ -218,21 +211,16 @@ def _add_lesson(service, calendar_id, lesson):
             raise err
 
 
-@backoff.on_exception(backoff.expo, HttpError,  max_tries=4)
+@backoff.on_exception(backoff.expo, HttpError, max_tries=4)
 def _update_lesson(service, calendar_id, lesson):
-    service \
-        .events() \
-        .update(calendarId=calendar_id,
-                eventId=lesson.id,
-                body=lesson.to_gcalendar_format()) \
-        .execute()
+    service.events().update(
+        calendarId=calendar_id, eventId=lesson.id, body=lesson.to_gcalendar_format()
+    ).execute()
 
 
 def _print_action(action, lesson):
-    print(action.upper() + ":")
-    print(lesson)
-    print()
-    print()
+    print(f"{action.upper()}:\n{lesson}\n\n")
+
 
 def _delete_removed_lessons(service, calendar_id, old_schedule, new_schedule):
     for old_lesson in old_schedule:
