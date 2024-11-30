@@ -13,10 +13,11 @@
 # limitations under the License.
 
 import datetime
+import os
 import re
+import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 from lxml import html
 from . import lesson
 
@@ -268,7 +269,8 @@ def _extract_lesson_info(tooltip):
     else:
         summary = _prepend_section_to_summary(event_title, summary)
 
-    description = "" ################################################################################################# TODO: Handle this better
+    description = "" ##############################################################################
+    # TODO: Handle this better
     if description == "":  # needed for comparison
         description = None
 
@@ -290,11 +292,14 @@ def _parse_element_to_lesson(element, show_top, show_cancelled):
     elif not show_cancelled and status == "cancelled":
         return None
     # elif not location:
-    #     return None ################################################################################################# TODO: Do this better
+    #     return None #############################################################################
+    # TODO: Do this better
     elif (end_time - start_time).days > 5:
-        return None ################################################################################################# TODO: Do this better
+        return None ###############################################################################
+    # TODO: Do this better
     else:
-        location = None ################################################################################################# TODO: Undo this
+        location = None ###########################################################################
+        # TODO: Undo this
         return lesson.Lesson(id, summary, status, start_time, end_time, location, description, link)
 
 
@@ -361,48 +366,61 @@ def _retreive_user_schedule(driver, school_id, user_type, user_id, n_weeks, show
     return filtered_schedule
 
 
-def _get_driver():
+def _get_driver(headless = True):
     driver = None
     try:
         options = webdriver.ChromeOptions()
-        options.add_argument("--headless=new")
-        service = webdriver.ChromeService(executable_path = '/usr/lib/chromium-browser/chromedriver')
-        driver = webdriver.Chrome(options = options, service = service)
-    except:
+        options.binary_location = '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser'
+        options.add_argument(f'--user-data-dir={os.getcwd()}/data-dir')
+        if headless:
+            options.add_argument("--headless=new")
+        driver = webdriver.Chrome(options = options)
+        print("Using Brave")
+    except Exception:
         try:
             options = webdriver.ChromeOptions()
-            options.add_argument("--headless=new")
+            if headless:
+                options.add_argument("--headless=new")
             driver = webdriver.Chrome(options=options)
-        except:
+            print("Using Chrome")
+        except Exception:
             try:
                 options = webdriver.FirefoxOptions()
-                options.add_argument("-headless")
+                if headless:
+                    options.add_argument("-headless")
                 driver = webdriver.Firefox(options=options)
-            except:
-                    raise Exception("Unable to open browser (tried Chrome and Firefox)")
+                print("Using Firefox")
+            except Exception:
+                    raise Exception("Unable to open browser (tried Brave, Chrome and Firefox)")
     return driver
 
 
-def _login(driver, school_id, username, password):
-    driver.get(LOGIN_URL_TEMPLATE.format(school_id))
+def login(school_id):
+    try:
+        driver = _get_driver(headless = False)
+        url = LOGIN_URL_TEMPLATE.format(school_id)
+        driver.get(url)
 
-    usernameInput = driver.find_element(By.NAME, "m$Content$username")
-    usernameInput.send_keys(username)
-    passwordInput = driver.find_element(By.NAME, "m$Content$password")
-    passwordInput.send_keys(password + Keys.RETURN)
-    
+        # Wait for browser to be closed
+        browser_closed = False
+        while not browser_closed:
+            try:
+                driver.title
+                time.sleep(0.2)
+            except Exception:
+                browser_closed = True
+    finally:
+        if driver is not None:
+            driver.quit()
 
-def get_schedule(school_id, user_type, user_id, n_weeks, show_top, show_cancelled, username, password):
+
+
+def get_schedule(school_id, user_type, user_id, n_weeks, show_top, show_cancelled):
     try:
         driver = _get_driver()
-
-        print("Using", driver.capabilities.get("browserName", "No name browser"))
-
-        _login(driver, school_id, username, password)
-
         return _retreive_user_schedule(driver, school_id, user_type, user_id, n_weeks, show_top, show_cancelled)
     finally:
-        if not driver is None:
+        if driver is not None:
             driver.quit()
 
 

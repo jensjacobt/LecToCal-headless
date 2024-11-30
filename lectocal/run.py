@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import argparse
-import getpass
-import keyring
 import sys
 from . import lectio
 from . import gcalendar
@@ -34,6 +32,11 @@ def _get_arguments():
     parser.add_argument("user_id",
                         type=int,
                         help="User's ID in Lectio.")
+    parser.add_argument('--login',
+                        default=False,
+                        dest='login',
+                        action='store_true',
+                        help="If set, open browser to log in using MitID.")
     parser.add_argument("--calendar",
                         default="Lectio",
                         help="Name to use for the calendar inside "
@@ -43,20 +46,6 @@ def _get_arguments():
                         default=4,
                         help="Number of weeks to parse the schedule for. "
                         "(default: 4)")
-    parser.add_argument("--login",
-                        default="",
-                        type=str,
-                        help="The username from a Lectio login.")
-    parser.add_argument('--store-pass',
-                        default=False,
-                        dest='store_pass',
-                        action='store_true',
-                        help="If set, attempt to store user password in system keyring (e.g. Keychain on macOS).")
-    parser.add_argument('--reset',
-                        default=False,
-                        dest='reset',
-                        action='store_true',
-                        help="If set, reset user password in system keyring (e.g. Keychain on macOS).")
     parser.add_argument('--showtop',
                         default=False,
                         dest='show_top',
@@ -71,7 +60,7 @@ def _get_arguments():
     return parser.parse_args()
 
 def sync(school_id, user_type, user_id, calendar_name,
-         username, password, weeks, show_top, show_cancelled):
+         weeks, show_top, show_cancelled):
     """
     Sync calendar from Lectio to Google
     """
@@ -80,57 +69,26 @@ def sync(school_id, user_type, user_id, calendar_name,
 
     lectio_schedule = lectio.get_schedule(
         school_id, user_type, user_id, weeks, 
-        show_top, show_cancelled, username, password)
+        show_top, show_cancelled)
     
     google_schedule = gcalendar.get_schedule(calendar_name, weeks)
 
     gcalendar.update_calendar_with_schedule(
         calendar_name, google_schedule, lectio_schedule)
 
-def getUserPass(login, store_pass, reset):
-    if login == "":
-        try:
-            login = input("Lectio username: ")
-        except:
-            print("\nLogin cancelled")
-            sys.exit()
-
-    password = None
-    if not reset:
-        password = keyring.get_password(KEYRING_SERVICE_NAME, login)
-    if password is None:
-        try:
-            password = getpass.getpass(prompt="Lectio password: ")
-            if store_pass:
-                keyring.set_password(KEYRING_SERVICE_NAME, login, password)
-        except:
-            print("\nLogin cancelled")
-            sys.exit()
-    
-    return login, password
-
 def main():
     a = _get_arguments()
 
-    login, password = getUserPass(a.login, a.store_pass, a.reset)
-
     try:
-        sync(a.school_id, a.user_type, a.user_id, a.calendar, 
-             login, password, a.weeks, a.show_top, a.show_cancelled)
-    except Exception as e:
-        if type(e) == lectio.UserDoesNotExistError:
-            message = ("Unable to log in.\n"
-                       "Did you type the username and password, correctly?\n"
-                       "(And did you specify school_id, user_type, and user_id, correctly?)\n"
-                       "(And can you access Lectio from your web browser?)")
-            print(message, file=sys.stderr)
-            sys.exit(1)
+        if a.login:
+            lectio.login(a.school_id)
         else:
-            message = "An error occured. If it continues, then submit an issue with the following dump:"
-            print(message + "\n", file=sys.stderr)
-            raise e
-
+            sync(a.school_id, a.user_type, a.user_id, a.calendar, 
+                 a.weeks, a.show_top, a.show_cancelled)
+    except Exception as e:
+        message = "An error occured. If it continues, then submit an issue with the following dump:"
+        print(message + "\n", file=sys.stderr)
+        raise e
 
 if __name__ == "__main__":
     main()
-    # TODO: Brug sidetitel til at afgøre om der var succes ved loginforsøg

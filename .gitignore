@@ -5,6 +5,9 @@ TODO
 example.html
 test.py
 
+# Don't version browser data
+data-dir
+
 # Don't sync environment files
 env/
 .venv/
